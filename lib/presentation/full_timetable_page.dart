@@ -6,6 +6,7 @@ import 'package:flutter/physics.dart';
 
 import '../domain/schedule_models.dart';
 import 'course_detail_sheet.dart';
+import 'schedule_background.dart';
 
 /// 把平移量夹到合法范围，是整周课表缩放/拖动行为的唯一裁剪入口。
 ///
@@ -47,7 +48,11 @@ Offset clampTimetableOffset({
 /// 表现为回弹。改用自己处理手势 + [clampTimetableOffset] 夹紧，行为完全确定，
 /// 任何速度下都不会回弹。
 class FullTimetablePage extends StatefulWidget {
-  const FullTimetablePage({required this.term, required this.courses, super.key});
+  const FullTimetablePage({
+    required this.term,
+    required this.courses,
+    super.key,
+  });
 
   final Term term;
   final List<Course> courses;
@@ -123,8 +128,7 @@ class _FullTimetablePageState extends State<FullTimetablePage>
 
   void _onScaleUpdate(ScaleUpdateDetails details) {
     final nextScale = (_startScale * details.scale).clamp(_minScale, _maxScale);
-    final nextOffset =
-        details.localFocalPoint - _startContentFocal * nextScale;
+    final nextOffset = details.localFocalPoint - _startContentFocal * nextScale;
     setState(() {
       _scale = nextScale;
       _offset = clampTimetableOffset(
@@ -169,8 +173,13 @@ class _FullTimetablePageState extends State<FullTimetablePage>
   Widget build(BuildContext context) {
     final layout = _GridLayout.build(widget.term, widget.courses);
     final theme = Theme.of(context);
+    final surface = ScheduleSurface.of(context);
     return Scaffold(
+      backgroundColor: surface.hasImage ? Colors.transparent : null,
       appBar: AppBar(
+        backgroundColor: surface.hasImage ? surface.headerColor(context) : null,
+        surfaceTintColor: Colors.transparent,
+        scrolledUnderElevation: 0,
         title: const Text('整周课表'),
         actions: [
           IconButton(
@@ -207,13 +216,16 @@ class _FullTimetablePageState extends State<FullTimetablePage>
           ? const Center(child: Text('本学期还没有课程'))
           : ColoredBox(
               // 铺满底色，避免深色模式下网格四周露出纯黑边。
-              color: theme.colorScheme.surface,
+              color: surface.hasImage
+                  ? Colors.transparent
+                  : theme.colorScheme.surface,
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  final viewport =
-                      Size(constraints.maxWidth, constraints.maxHeight);
-                  final content =
-                      Size(layout.totalWidth, layout.totalHeight);
+                  final viewport = Size(
+                    constraints.maxWidth,
+                    constraints.maxHeight,
+                  );
+                  final content = Size(layout.totalWidth, layout.totalHeight);
                   _viewport = viewport;
                   _content = content;
                   // 缩放下限 = 整张表恰好装进一屏（两轴取较小者）。
@@ -267,12 +279,7 @@ class _FullTimetablePageState extends State<FullTimetablePage>
                         maxHeight: double.infinity,
                         child: Transform(
                           transform: Matrix4.identity()
-                            ..translateByDouble(
-                              _offset.dx,
-                              _offset.dy,
-                              0,
-                              1,
-                            )
+                            ..translateByDouble(_offset.dx, _offset.dy, 0, 1)
                             ..scaleByDouble(_scale, _scale, 1, 1),
                           child: SizedBox(
                             width: content.width,
@@ -371,7 +378,8 @@ class _GridLayout {
       var clusterMaxEnd = sessions.first.endRow;
       for (var index = 1; index <= sessions.length; index++) {
         final isBreak =
-            index == sessions.length || sessions[index].startRow > clusterMaxEnd;
+            index == sessions.length ||
+            sessions[index].startRow > clusterMaxEnd;
         if (!isBreak) {
           if (sessions[index].endRow > clusterMaxEnd) {
             clusterMaxEnd = sessions[index].endRow;
@@ -393,14 +401,14 @@ class _GridLayout {
     final rowCount = periodNumbers.length;
     return _GridLayout(
       periodNumbers: periodNumbers,
-      totalWidth: FullTimetablePage._periodColumnWidth +
+      totalWidth:
+          FullTimetablePage._periodColumnWidth +
           7 * FullTimetablePage._dayColumnWidth,
       totalHeight:
-          FullTimetablePage._headerHeight + rowCount * FullTimetablePage._rowHeight,
+          FullTimetablePage._headerHeight +
+          rowCount * FullTimetablePage._rowHeight,
       cards: cards,
-      periodLabels: [
-        for (final number in periodNumbers) byNumber[number],
-      ],
+      periodLabels: [for (final number in periodNumbers) byNumber[number]],
     );
   }
 
@@ -433,7 +441,8 @@ class _GridLayout {
     final available =
         FullTimetablePage._dayColumnWidth - 2 * FullTimetablePage._cellPadding;
     final slotWidth = available / trackCount;
-    final dayLeft = FullTimetablePage._periodColumnWidth +
+    final dayLeft =
+        FullTimetablePage._periodColumnWidth +
         (weekday - 1) * FullTimetablePage._dayColumnWidth;
 
     for (var index = 0; index < cluster.length; index++) {
@@ -442,14 +451,14 @@ class _GridLayout {
       cards.add(
         _CardPlacement(
           ref: session,
-          left: dayLeft +
-              FullTimetablePage._cellPadding +
-              track * slotWidth,
-          top: FullTimetablePage._headerHeight +
+          left: dayLeft + FullTimetablePage._cellPadding + track * slotWidth,
+          top:
+              FullTimetablePage._headerHeight +
               session.startRow * FullTimetablePage._rowHeight +
               FullTimetablePage._cellPadding,
           width: slotWidth - 2,
-          height: (session.endRow - session.startRow + 1) *
+          height:
+              (session.endRow - session.startRow + 1) *
                   FullTimetablePage._rowHeight -
               2 * FullTimetablePage._cellPadding,
         ),
@@ -558,7 +567,8 @@ class _GridBody extends StatelessWidget {
         for (var index = 0; index <= layout.periodNumbers.length; index++)
           Positioned(
             left: 0,
-            top: FullTimetablePage._headerHeight +
+            top:
+                FullTimetablePage._headerHeight +
                 index * FullTimetablePage._rowHeight,
             width: layout.totalWidth,
             height: 1,
@@ -603,9 +613,9 @@ class _PeriodLabel extends StatelessWidget {
               '${_timeText(period.startMinutes)}-${_timeText(period.endMinutes)}',
               maxLines: 1,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontSize: 10,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+                fontSize: 10,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
         ],
@@ -625,8 +635,9 @@ class _CourseBlock extends StatelessWidget {
     final session = card.ref.session;
     final color = Color(course.colorValue);
     final teacher = session.teacherOverride?.trim();
-    final teacherText =
-        (teacher == null || teacher.isEmpty) ? course.teacher : teacher;
+    final teacherText = (teacher == null || teacher.isEmpty)
+        ? course.teacher
+        : teacher;
     final scheme = Theme.of(context).colorScheme;
 
     return GestureDetector(
@@ -642,7 +653,12 @@ class _CourseBlock extends StatelessWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           // 淡色底 + 同色描边，深浅色模式下文字都保持清晰。
-          color: color.withValues(alpha: 0.16),
+          color: ScheduleSurface.of(context).hasImage
+              ? Color.alphaBlend(
+                  color.withValues(alpha: .16),
+                  scheme.surface,
+                ).withValues(alpha: ScheduleSurface.of(context).cardOpacity)
+              : color.withValues(alpha: 0.16),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(color: color.withValues(alpha: 0.75)),
         ),
@@ -717,10 +733,9 @@ class _BlockLine extends StatelessWidget {
       text,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
-      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            fontSize: 11,
-            color: color,
-          ),
+      style: Theme.of(
+        context,
+      ).textTheme.bodySmall?.copyWith(fontSize: 11, color: color),
     );
   }
 }

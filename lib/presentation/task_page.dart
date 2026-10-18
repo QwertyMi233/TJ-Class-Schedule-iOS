@@ -30,10 +30,14 @@ class _TaskPageState extends ConsumerState<TaskPage>
   String _search = '';
   String _view = 'pending';
   String _platform = 'all';
+  int _haokeCategories = 31;
+  bool _categoriesLoaded = false;
+  Future<void> _categorySave = Future<void>.value();
   String _course = 'all';
   bool _courseSort = false;
   bool _showDemo = false;
   bool _syncing = false;
+  bool _syncNoticeVisible = false;
   Timer? _timer;
   Timer? _countdownTimer;
   final _authPlatforms = <String>[];
@@ -102,6 +106,17 @@ class _TaskPageState extends ConsumerState<TaskPage>
 
   Future<List<TaskRecord>> _loadVisible() async {
     final db = await ref.read(databaseProvider.future);
+    if (!_categoriesLoaded) {
+      final selected = int.tryParse(
+        await db.loadSetting('task_haoke_visible_categories') ?? '31',
+      );
+      if (!_categoriesLoaded) {
+        _haokeCategories = selected != null && selected >= 0 && selected <= 31
+            ? selected
+            : 31;
+        _categoriesLoaded = true;
+      }
+    }
     final rows = await (await _repository()).loadVisible();
     final auth = <String>[];
     for (final platform in ['canvas', 'haoke']) {
@@ -112,16 +127,32 @@ class _TaskPageState extends ConsumerState<TaskPage>
     _authPlatforms
       ..clear()
       ..addAll(auth);
+    if (mounted) ref.read(taskCacheProvider.notifier).state = rows;
     return rows;
+  }
+
+  void _toggleHaokeCategory(int value) {
+    _categoriesLoaded = true;
+    setState(() => _haokeCategories ^= value);
+    final selected = _haokeCategories;
+    // Keep rapid taps in order so the last selection survives reopening.
+    _categorySave = _categorySave.then((_) async {
+      final db = await _container.read(databaseProvider.future);
+      await db.saveSetting('task_haoke_visible_categories', '$selected');
+    });
   }
 
   List<TaskRecord> _visible(List<TaskRecord> saved) {
     final now = DateTime.now();
     final rows = List<TaskRecord>.of(saved);
     final query = _search.trim().toLowerCase();
+    final selectedCourse = saved.any((task) => task.course == _course)
+        ? _course
+        : 'all';
     rows.removeWhere((task) {
+      if (!task.matchesHaokeCategories(_haokeCategories)) return true;
       if (_platform != 'all' && task.platform != _platform) return true;
-      if (_course != 'all' && task.course != _course) return true;
+      if (selectedCourse != 'all' && task.course != selectedCourse) return true;
       if (query.isNotEmpty &&
           !'${task.title} ${task.course} ${task.platform}'
               .toLowerCase()
@@ -241,8 +272,11 @@ class _TaskPageState extends ConsumerState<TaskPage>
       _reload();
       await _tasks;
       if (!mounted) return;
-      if (manual || result.isNotEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
+      if (manual &&
+          ModalRoute.of(context)?.isCurrent == true &&
+          !_syncNoticeVisible) {
+        _syncNoticeVisible = true;
+        final notice = ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             duration: const Duration(seconds: 3),
             persist: false,
@@ -268,12 +302,22 @@ class _TaskPageState extends ConsumerState<TaskPage>
             ),
           ),
         );
+        unawaited(notice.closed.then((_) => _syncNoticeVisible = false));
       }
     } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('暂时无法同步，已有作业保留')));
+      if (mounted &&
+          manual &&
+          ModalRoute.of(context)?.isCurrent == true &&
+          !_syncNoticeVisible) {
+        _syncNoticeVisible = true;
+        final notice = ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            duration: Duration(seconds: 3),
+            persist: false,
+            content: Text('暂时无法同步，已有作业保留'),
+          ),
+        );
+        unawaited(notice.closed.then((_) => _syncNoticeVisible = false));
       }
     } finally {
       if (mounted) setState(() => _syncing = false);
@@ -324,13 +368,10 @@ class _TaskPageState extends ConsumerState<TaskPage>
       body: SafeArea(
         child: FutureBuilder<List<TaskRecord>>(
           future: _tasks,
+          initialData: ref.read(taskCacheProvider),
           builder: (context, snapshot) {
-            if (!snapshot.hasData) {
-              if (snapshot.hasError) {
-                return Center(child: Text('读取作业失败：${snapshot.error}'));
-              }
-              return const Center(child: CircularProgressIndicator());
-            }
+            final cached = ref.read(taskCacheProvider);
+            final hasSaved = snapshot.hasData || cached != null;
             final saved = _showDemo
                 ? _demoTasks(DateTime.now())
                       .map(
@@ -339,8 +380,11 @@ class _TaskPageState extends ConsumerState<TaskPage>
                         ),
                       )
                       .toList()
-                : snapshot.data!;
-            if (!_initialTaskOpened && widget.initialTaskId != null) {
+                : snapshot.data ?? cached ?? const <TaskRecord>[];
+            if (snapshot.connectionState == ConnectionState.done &&
+                snapshot.hasData &&
+                !_initialTaskOpened &&
+                widget.initialTaskId != null) {
               _initialTaskOpened = true;
               final matches = saved.where(
                 (task) => task.id == widget.initialTaskId,
@@ -355,9 +399,16 @@ class _TaskPageState extends ConsumerState<TaskPage>
             final courses = saved.map((task) => task.course).toSet().toList()
               ..sort();
             final now = DateTime.now();
-            final pending = saved.where((task) => !task.completed).length;
-            final completed = saved.where((task) => task.completed).length;
-            final overdue = saved
+            final categoryTasks = saved.where(
+              (task) => task.matchesHaokeCategories(_haokeCategories),
+            );
+            final pending = categoryTasks
+                .where((task) => !task.completed)
+                .length;
+            final completed = categoryTasks
+                .where((task) => task.completed)
+                .length;
+            final overdue = categoryTasks
                 .where(
                   (task) =>
                       !task.completed &&
@@ -368,6 +419,14 @@ class _TaskPageState extends ConsumerState<TaskPage>
             return ListView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
               children: [
+                if (snapshot.hasError)
+                  ListTile(
+                    title: const Text('读取作业失败，已有记录保留'),
+                    trailing: TextButton(
+                      onPressed: _reload,
+                      child: const Text('重试'),
+                    ),
+                  ),
                 if (_authPlatforms.isNotEmpty)
                   Card(
                     child: Padding(
@@ -389,10 +448,11 @@ class _TaskPageState extends ConsumerState<TaskPage>
                       ),
                     ),
                   ),
-                Text(
-                  '待完成 $pending  ·  已完成 $completed  ·  逾期 $overdue',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
+                if (hasSaved || _showDemo)
+                  Text(
+                    '待完成 $pending  ·  已完成 $completed  ·  逾期 $overdue',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
                 Wrap(
                   spacing: 8,
                   children: [
@@ -507,6 +567,24 @@ class _TaskPageState extends ConsumerState<TaskPage>
                     ),
                   ],
                 ),
+                if ((_platform == 'all' || _platform == 'haoke') &&
+                    saved.any((task) => task.platform == 'haoke')) ...[
+                  const Text('好课显示内容 · 可多选'),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      for (final category
+                          in TaskRecord.haokeCategoryLabels.entries)
+                        FilterChip(
+                          key: ValueKey('haoke-category-${category.key}'),
+                          label: Text(category.value),
+                          selected: (_haokeCategories & category.key) != 0,
+                          onSelected: (_) => _toggleHaokeCategory(category.key),
+                        ),
+                    ],
+                  ),
+                  const Text('按栏目图标归类，作业/小测含期中、期末。全选也显示其他学习任务；不删除记录。'),
+                ],
                 Wrap(
                   alignment: WrapAlignment.spaceBetween,
                   spacing: 8,
@@ -526,10 +604,10 @@ class _TaskPageState extends ConsumerState<TaskPage>
                     ),
                   ],
                 ),
-                if (rows.isEmpty)
+                if (rows.isEmpty && (hasSaved || _showDemo))
                   const Padding(
                     padding: EdgeInsets.all(40),
-                    child: Center(child: Text('这里暂时没有作业')),
+                    child: Center(child: Text('没有匹配的作业，可调整筛选或好课显示内容')),
                   ),
                 for (var index = 0; index < rows.length; index++) ...[
                   if (_courseSort &&

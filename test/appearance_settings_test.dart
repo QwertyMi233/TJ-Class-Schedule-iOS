@@ -11,6 +11,7 @@ import 'package:offline_course_schedule/domain/schedule_models.dart';
 import 'package:offline_course_schedule/main.dart';
 import 'package:offline_course_schedule/presentation/app_theme.dart';
 import 'package:offline_course_schedule/presentation/appearance_settings_page.dart';
+import 'package:offline_course_schedule/presentation/schedule_background.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 void main() {
@@ -148,7 +149,10 @@ void main() {
     // 拖动色相滑杆后确认，应保存一个与初始值不同的颜色。
     await tester.drag(
       find
-          .descendant(of: find.byType(AlertDialog), matching: find.byType(Slider))
+          .descendant(
+            of: find.byType(AlertDialog),
+            matching: find.byType(Slider),
+          )
           .first,
       const Offset(60, 0),
     );
@@ -172,9 +176,7 @@ void main() {
     // 缺省必须是 null：这样未设置时小组件外观与改造前完全一致。
     expect(await container.read(widgetColorProvider.future), isNull);
 
-    await container
-        .read(widgetColorProvider.notifier)
-        .saveSettings(0xFF1B4332);
+    await container.read(widgetColorProvider.notifier).saveSettings(0xFF1B4332);
     expect(await container.read(widgetColorProvider.future), 0xFF1B4332);
     expect(await database.loadSetting('widget_color'), '${0xFF1B4332}');
 
@@ -190,7 +192,8 @@ void main() {
   });
 
   testWidgets('外观设置页含小组件颜色分组，可点选预设色并恢复默认', (tester) async {
-    final widgetColor = _FakeWidgetColorController(null);    await tester.pumpWidget(_page(widgetColorController: widgetColor));
+    final widgetColor = _FakeWidgetColorController(null);
+    await tester.pumpWidget(_page(widgetColorController: widgetColor));
     await tester.pumpAndSettle();
 
     // 该分组在长页面下方，先滚动到它再断言，否则视口外找不到。
@@ -198,10 +201,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('小组件颜色'), findsOneWidget);
-    expect(
-      find.text('只影响小组件的普通状态，临近上课时的提醒色不受影响'),
-      findsOneWidget,
-    );
+    expect(find.text('只影响小组件的普通状态，临近上课时的提醒色不受影响'), findsOneWidget);
     expect(find.byKey(const ValueKey('widget-color-default')), findsOneWidget);
 
     // 该分组位于长页面下方，默认测试视口内不可见，先滚动到可见再点击。
@@ -345,10 +345,7 @@ void main() {
     expect(find.text('主界面背景图'), findsOneWidget);
     expect(find.text('未设置，深色与浅色模式共用同一张图'), findsOneWidget);
     final removeTile = tester.widget<ListTile>(
-      find.ancestor(
-        of: find.text('移除背景图'),
-        matching: find.byType(ListTile),
-      ),
+      find.ancestor(of: find.text('移除背景图'), matching: find.byType(ListTile)),
     );
     expect(removeTile.enabled, isFalse);
   });
@@ -399,19 +396,27 @@ void main() {
     expect(find.text('自定义颜色'), findsOneWidget);
   });
 
-  testWidgets('设置背景图后主页铺图并叠固定半透明遮罩', (tester) async {
+  testWidgets('设置背景图后主页铺图并叠随主题变化的半透明遮罩', (tester) async {
     final image = _temporaryPng();
     addTearDown(() => image.parent.deleteSync(recursive: true));
     await tester.pumpWidget(
       _homeApp(backgroundPath: image.path, themeControllerSeed: null),
     );
+    await _settleBackground(tester);
     await tester.pumpAndSettle();
 
     final imageWidget = tester.widget<Image>(find.byType(Image));
-    expect((imageWidget.image as FileImage).file.path, image.path);
+    expect(
+      ((imageWidget.image as ResizeImage).imageProvider as FileImage).file.path,
+      image.path,
+    );
     expect(imageWidget.fit, BoxFit.cover);
-    // 遮罩固定为黑色 55% 透明度，深色与浅色模式共用，不暴露给用户。
+    // 浅色主题用浅色蒙层，防止暗图与浅色卡片形成割裂。
     expect(_overlayFinder, findsOneWidget);
+    expect(
+      tester.widget<ColoredBox>(_overlayFinder).color,
+      Colors.white.withValues(alpha: .55),
+    );
     // 原内容仍在遮罩之上。
     expect(find.text('测试学期'), findsOneWidget);
   });
@@ -483,6 +488,7 @@ void main() {
         child: const CourseScheduleApp(),
       ),
     );
+    await _settleBackground(tester);
     await tester.pumpAndSettle();
 
     final card = tester.widget<Card>(find.byType(Card).first);
@@ -503,9 +509,19 @@ void main() {
 
 /// 背景遮罩层。用固定的遮罩颜色定位，避免匹配到界面上其他 ColoredBox。
 final _overlayFinder = find.byWidgetPredicate(
-  (widget) =>
-      widget is ColoredBox && widget.color == const Color.fromRGBO(0, 0, 0, 0.55),
+  (widget) => widget.key == const ValueKey('schedule-background-scrim'),
 );
+
+Future<void> _settleBackground(WidgetTester tester) async {
+  final container = ProviderScope.containerOf(
+    tester.element(find.byType(CourseScheduleApp)),
+    listen: false,
+  );
+  await tester.runAsync(
+    () => container.read(scheduleBackgroundImageProvider.future),
+  );
+  await tester.pumpAndSettle();
+}
 
 ProviderContainer _rawContainer(
   ScheduleDatabase database, {
@@ -514,7 +530,8 @@ ProviderContainer _rawContainer(
   return ProviderContainer(
     overrides: [
       databaseProvider.overrideWith((ref) async => database),
-      if (source != null) backgroundImageSourceProvider.overrideWithValue(source),
+      if (source != null)
+        backgroundImageSourceProvider.overrideWithValue(source),
     ],
   );
 }
@@ -535,8 +552,7 @@ Widget _page({
             ),
       ),
       backgroundImagePathProvider.overrideWith(
-        () =>
-            backgroundController ?? _FakeBackgroundImagePathController(null),
+        () => backgroundController ?? _FakeBackgroundImagePathController(null),
       ),
       widgetColorProvider.overrideWith(
         () => widgetColorController ?? _FakeWidgetColorController(null),
@@ -590,8 +606,7 @@ File _temporaryPng() {
   final file = File('${directory.path}/bg.png');
   file.writeAsBytesSync(
     base64Decode(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFAAH/'
-      'q842NwAAAABJRU5ErkJggg==',
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGOoiNr3HwAFbgKQFssP1gAAAABJRU5ErkJggg==',
     ),
   );
   return file;
@@ -608,7 +623,9 @@ File _temporaryPng() {
     totalWeeks: 20,
     periodsByWeekday: {
       for (var day = 1; day <= 7; day++)
-        day: [const LessonPeriod(number: 1, startMinutes: 480, endMinutes: 580)],
+        day: [
+          const LessonPeriod(number: 1, startMinutes: 480, endMinutes: 580),
+        ],
     },
   );
   return (data: ScheduleData(term: term), today: today);
@@ -693,8 +710,7 @@ class _FakeThemeSeedColorController extends ThemeSeedColorController {
   }
 }
 
-class _FakeBackgroundImagePathController
-    extends BackgroundImagePathController {
+class _FakeBackgroundImagePathController extends BackgroundImagePathController {
   _FakeBackgroundImagePathController(this.initial);
 
   final String? initial;

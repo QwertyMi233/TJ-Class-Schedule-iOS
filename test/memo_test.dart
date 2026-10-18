@@ -42,14 +42,14 @@ void main() {
       );
     });
 
-    test('一次性缺少起止时刻时构造失败', () {
+    test('一次性缺少开始时刻时构造失败', () {
       expect(
         () => Memo(
           id: 'memo-1',
           title: '体检',
           colorValue: 0xFF7D9DCE,
           date: DateTime(2026, 10, 1),
-          startMinutes: 840,
+          endMinutes: 930,
         ),
         throwsArgumentError,
       );

@@ -7,6 +7,7 @@ import 'package:offline_course_schedule/data/platform_credential_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:offline_course_schedule/application/schedule_controller.dart';
 import 'package:offline_course_schedule/application/task_sync_controller.dart';
+import 'package:offline_course_schedule/application/task_state.dart';
 import 'package:offline_course_schedule/data/schedule_database.dart';
 import 'package:offline_course_schedule/data/task_repository.dart';
 import 'package:offline_course_schedule/domain/task_record.dart';
@@ -21,9 +22,11 @@ class _Sync extends TaskSyncService {
   _Sync(super.db);
   int calls = 0, closes = 0;
   Map<String, String> result = {};
+  bool fail = false;
   @override
   Future<Map<String, String>> refresh({bool manual = false}) async {
     calls++;
+    if (fail) throw StateError('测试网络失败');
     return result;
   }
 
@@ -90,11 +93,113 @@ void main() {
         ),
       ),
     );
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 30)),
-    );
+    // SQLite/provider futures need real event-loop turns before settling animations.
+    var tasksLoaded = false;
+    if (page is TaskPage) {
+      tester
+          .widget<FutureBuilder<List<TaskRecord>>>(
+            find.byType(FutureBuilder<List<TaskRecord>>),
+          )
+          .future!
+          .then((_) => tasksLoaded = true);
+    }
+    for (var i = 0; i < 100; i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 10)),
+      );
+      await tester.pump();
+      if (page is TaskPage) {
+        if (tasksLoaded) break;
+      } else if (find.byType(CircularProgressIndicator).evaluate().isEmpty) {
+        break;
+      }
+    }
     await tester.pumpAndSettle();
   }
+
+  testWidgets('320宽大字体五类可组合，退出重进保留选择且原任务不删除', (tester) async {
+    tester.view.physicalSize = const Size(320, 720);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.runAsync(() => db.saveSetting('task_haoke_account', '23'));
+    final repository = TaskRepository(db.database);
+    for (final category in TaskRecord.haokeCategoryLabels.entries) {
+      await tester.runAsync(
+        () => repository.save(
+          TaskRecord(
+            id: 'haoke:${category.key}',
+            title: '筛选测试${category.value}',
+            course: '数学',
+            platform: 'haoke',
+            source: 'haoke',
+            accountId: '23',
+            createdAt: DateTime.now(),
+            haokeCategories: category.key,
+          ),
+        ),
+      );
+    }
+    await show(tester, const TaskPage(), sync: _Sync(db));
+    final chip = find.byKey(const ValueKey('haoke-category-2'));
+    await tester.ensureVisible(chip);
+    await tester.tap(chip);
+    await tester.pumpAndSettle();
+    final exam = find.byKey(const ValueKey('haoke-category-8'));
+    await tester.ensureVisible(exam);
+    await tester.tap(exam);
+    await tester.pumpAndSettle();
+    final mind = find.byKey(const ValueKey('haoke-category-16'));
+    await tester.ensureVisible(mind);
+    await tester.tap(mind);
+    await tester.pumpAndSettle();
+    expect(tester.widget<FilterChip>(chip).selected, isFalse);
+    expect(tester.widget<FilterChip>(exam).selected, isFalse);
+    final quizTask = find.text('筛选测试课堂练习');
+    await tester.scrollUntilVisible(
+      quizTask,
+      160,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('筛选测试作业/小测'), findsOneWidget);
+    expect(quizTask, findsOneWidget);
+    expect(find.text('筛选测试考试'), findsNothing);
+    expect(find.text('筛选测试知识点资源'), findsNothing);
+    for (var i = 0; i < 20; i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 10)),
+      );
+      await tester.pump();
+      if (await tester.runAsync(
+            () => db.loadSetting('task_haoke_visible_categories'),
+          ) ==
+          '5') {
+        break;
+      }
+    }
+    expect(
+      await tester.runAsync(
+        () => db.loadSetting('task_haoke_visible_categories'),
+      ),
+      '5',
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+    await show(tester, const TaskPage(), sync: _Sync(db));
+    await tester.ensureVisible(chip);
+    expect(tester.widget<FilterChip>(chip).selected, isFalse);
+    expect(
+      tester
+          .widget<FilterChip>(find.byKey(const ValueKey('haoke-category-4')))
+          .selected,
+      isTrue,
+    );
+    expect(await tester.runAsync(() => repository.loadAll()), hasLength(5));
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+  });
 
   testWidgets('手机窄屏确认、取消、撤销；演示与真实作业分离，详情可滚动', (tester) async {
     tester.view.physicalSize = const Size(360, 720);
@@ -317,6 +422,90 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('同步后旧课程消失时，全部课程筛选会实际显示新课程', (tester) async {
+    final repo = TaskRepository(db.database);
+    await tester.runAsync(
+      () => repo.save(
+        TaskRecord(
+          id: 'old',
+          title: '旧作业',
+          course: '旧课程',
+          platform: 'manual',
+          source: 'manual',
+          accountId: 'local',
+          createdAt: DateTime.now(),
+        ),
+      ),
+    );
+    await show(tester, const TaskPage(), sync: _Sync(db));
+    final courses = find.byType(DropdownButton<String>).at(1);
+    await tester.ensureVisible(courses);
+    await tester.tap(courses);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('旧课程').last);
+    await tester.pumpAndSettle();
+    await tester.runAsync(() async {
+      await repo.deleteManual('old');
+      await repo.save(
+        TaskRecord(
+          id: 'new',
+          title: '新作业',
+          course: '新课程',
+          platform: 'manual',
+          source: 'manual',
+          accountId: 'local',
+          createdAt: DateTime.now(),
+        ),
+      );
+    });
+    final context = tester.element(find.byType(TaskPage));
+    ProviderScope.containerOf(
+      context,
+    ).read(taskRevisionProvider.notifier).state++;
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 80)),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('全部课程'), findsOneWidget);
+    expect(find.text('新作业'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('自动成功、失败和恢复前台均不弹同步提示', (tester) async {
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    final sync = _Sync(db)..result = {'canvas': '同步完成：10 项作业'};
+    await show(tester, const TaskPage(), sync: sync);
+    expect(sync.calls, greaterThan(0));
+    expect(find.byType(SnackBar), findsNothing);
+    sync.fail = true;
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 80)),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(SnackBar), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('手动同步提示不重复排队', (tester) async {
+    final sync = _Sync(db)..result = {'canvas': '同步完成：10 项作业'};
+    await show(tester, const TaskPage(), sync: sync);
+    for (var i = 0; i < 3; i++) {
+      await tester.tap(find.byTooltip('同步并刷新'));
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 60)),
+      );
+      await tester.pumpAndSettle();
+    }
+    expect(find.byType(SnackBar), findsOneWidget);
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
+    expect(find.byType(SnackBar), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('重新登录提示带按钮仍在三秒后消失，页面入口保留', (tester) async {
     await tester.runAsync(
       () => db.saveSetting('task_canvas_needs_auth', 'true'),
@@ -324,7 +513,9 @@ void main() {
     final sync = _Sync(db)..result = {'canvas': '需要重新登录'};
     await show(tester, const TaskPage(), sync: sync);
     await tester.tap(find.byTooltip('同步并刷新'));
-    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 80)));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 80)),
+    );
     await tester.pumpAndSettle();
     expect(find.byType(SnackBar), findsOneWidget);
     expect(tester.widget<SnackBar>(find.byType(SnackBar)).persist, isFalse);

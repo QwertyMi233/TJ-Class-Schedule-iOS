@@ -1,0 +1,15 @@
+name: canvas_session_bridge
+description: 本机Canvas官方会话与加密轮换桥接，不连接开发者服务器。
+version: 0.0.1
+publish_to: none
+environment:
+  sdk: '>=3.10.0 <4.0.0'
+dependencies:
+  flutter:
+    sdk: flutter
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: icu.tjschedule.canvas_session
+        pluginClass: CanvasSessionPlugin

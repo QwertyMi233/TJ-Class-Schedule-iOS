@@ -1,10 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <data-extraction-rules>
     <cloud-backup>
+        <exclude domain="root" path="app_webview" />
+        <exclude domain="sharedpref" path="canvas_session_private.xml" />
+        <exclude domain="database" path="saved_locations.db" />
+        <exclude domain="database" path="saved_locations.db-journal" />
+        <exclude domain="database" path="saved_locations.db-wal" />
+        <exclude domain="database" path="saved_locations.db-shm" />
         <exclude domain="sharedpref" path="FlutterSecureStorage.xml" />
         <exclude domain="sharedpref" path="FlutterSecureStorage" />
     </cloud-backup>
     <device-transfer>
+        <exclude domain="root" path="app_webview" />
+        <exclude domain="sharedpref" path="canvas_session_private.xml" />
+        <exclude domain="database" path="saved_locations.db" />
+        <exclude domain="database" path="saved_locations.db-journal" />
+        <exclude domain="database" path="saved_locations.db-wal" />
+        <exclude domain="database" path="saved_locations.db-shm" />
         <exclude domain="sharedpref" path="FlutterSecureStorage.xml" />
         <exclude domain="sharedpref" path="FlutterSecureStorage" />
     </device-transfer>

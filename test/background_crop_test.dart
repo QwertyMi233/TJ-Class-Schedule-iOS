@@ -147,6 +147,75 @@ void main() {
     expect(find.byIcon(Icons.visibility_off_outlined), findsOneWidget);
   });
 
+  for (final screen in [const Size(320, 600), const Size(640, 360)]) {
+    testWidgets('小屏或横屏大字体 $screen 下确认后的图片与预览一致', (tester) async {
+      tester.view.physicalSize = screen;
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      late Uint8List source;
+      Uint8List? result;
+      await tester.runAsync(() async {
+        source = await _pngBytes(320, 640);
+      });
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: TextScaler.linear(1.5)),
+            child: child!,
+          ),
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                onPressed: () async {
+                  result = await Navigator.push<Uint8List>(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          BackgroundCropPage(imageBytes: source, blur: 6),
+                    ),
+                  );
+                },
+                child: const Text('选择图片'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('选择图片'));
+      await tester.pump();
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 200)),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      final frame = tester.getSize(find.byType(InteractiveViewer));
+      expect(
+        frame.width / frame.height,
+        closeTo(screen.width / screen.height, .001),
+      );
+      await tester.tap(find.text('使用这一部分'));
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 200)),
+      );
+      await tester.pumpAndSettle();
+      expect(result, isNotNull);
+      await tester.runAsync(() async {
+        final codec = await ui.instantiateImageCodec(result!);
+        final decoded = (await codec.getNextFrame()).image;
+        expect(
+          decoded.width / decoded.height,
+          closeTo(screen.width / screen.height, .01),
+        );
+        decoded.dispose();
+        codec.dispose();
+      });
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets('图片损坏时给出中文提示而不是崩溃', (tester) async {
     await tester.pumpWidget(
       MaterialApp(

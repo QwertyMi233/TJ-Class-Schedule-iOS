@@ -1,12 +1,12 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../application/schedule_controller.dart';
 import '../domain/schedule_engine.dart';
 import '../domain/schedule_models.dart';
+import '../features/location/app.dart' show LocationPage;
 import 'appearance_settings_page.dart';
+import 'schedule_background.dart';
 import 'course_detail_sheet.dart';
 import 'data_management_page.dart';
 import 'full_timetable_page.dart';
@@ -24,13 +24,56 @@ class HomePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final schedule = ref.watch(scheduleControllerProvider);
     return schedule.when(
-      loading: () =>
-          const Scaffold(body: Center(child: CircularProgressIndicator())),
+      skipLoadingOnReload: true,
+      skipError: true,
+      loading: () => Scaffold(
+        appBar: AppBar(
+          title: const Text('TJ Schedule'),
+          actions: [
+            IconButton(
+              tooltip: '定位',
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute<void>(builder: (_) => const LocationPage()),
+              ),
+              icon: const Icon(Icons.location_on_outlined),
+            ),
+            IconButton(
+              tooltip: '作业',
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute<void>(builder: (_) => const TaskPage()),
+              ),
+              icon: const Icon(Icons.assignment_outlined),
+            ),
+          ],
+        ),
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('正在读取本机课表'),
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: () => ref.invalidate(databaseProvider),
+                child: const Text('重新读取'),
+              ),
+            ],
+          ),
+        ),
+      ),
       error: (_, __) => Scaffold(
         body: Center(
-          child: FilledButton(
-            onPressed: () => ref.invalidate(scheduleControllerProvider),
-            child: const Text('加载失败，点击重试'),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('本机课表读取失败，请重试'),
+              const SizedBox(height: 12),
+              FilledButton(
+                onPressed: () => ref.invalidate(databaseProvider),
+                child: const Text('重新读取'),
+              ),
+            ],
           ),
         ),
       ),
@@ -54,6 +97,18 @@ class _WelcomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        actions: [
+          IconButton(
+            tooltip: '定位',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute<void>(builder: (_) => const LocationPage()),
+            ),
+            icon: const Icon(Icons.location_on_outlined),
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Center(
           child: Padding(
@@ -117,10 +172,6 @@ class _ScheduleHome extends ConsumerWidget {
     final swipeAdvancesWeek =
         ref.watch(swipeAdvancesWeekProvider).valueOrNull ?? false;
     final slideDirection = ref.watch(_dateChangeDirectionProvider);
-    final backgroundPath = ref.watch(backgroundImagePathProvider).valueOrNull;
-    final overlayOpacity =
-        ref.watch(backgroundOverlayOpacityProvider).valueOrNull ??
-        BackgroundOverlayOpacityController.defaultOpacity;
     final engine = ScheduleEngine(
       term: term,
       courses: data.courses,
@@ -130,213 +181,257 @@ class _ScheduleHome extends ConsumerWidget {
     );
     // 有背景图时整屏铺满：图片铺在 Scaffold 外层，标题栏与页面底色改透明即可透出，
     // 不需要 extendBodyBehindAppBar——那会把 body 顶到 y=0，内容钻到标题栏下面。
-    final hasBackground =
-        backgroundPath != null && File(backgroundPath).existsSync();
     return DefaultTabController(
       key: ValueKey(navigationRevision),
       length: 2,
-      child: _BackgroundImage(
-        path: backgroundPath,
-        overlayOpacity: overlayOpacity,
-        child: Scaffold(
-          backgroundColor: hasBackground ? Colors.transparent : null,
-          // Scaffold 按 endFloat 定位悬浮按钮，只保证「右边缘距屏幕 16」。
-          // Row 若撑满整屏（默认 mainAxisSize.max），左端就会被推到屏幕外裁掉，
-          // 两个按钮看起来不对称。这里把宽度收成「屏宽 - 左右各 16」，
-          // 让左右留白一致。
-          floatingActionButton: SizedBox(
-            width: MediaQuery.sizeOf(context).width -
-                2 * kFloatingActionButtonMargin,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                // 左下角：整周课表。与右下角的“添加课程”左右对称。
-                FloatingActionButton.extended(
-                  heroTag: 'full_timetable_fab',
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute<void>(
-                      builder: (_) => FullTimetablePage(
-                        term: term,
-                        courses: data.courses,
-                      ),
-                    ),
-                  ),
-                  icon: const Icon(Icons.grid_view_rounded),
-                  label: const Text('整周课表'),
-                ),
-                FloatingActionButton.extended(
-                  heroTag: 'add_course_fab',
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute<void>(
-                      builder: (_) => ManualCoursePage(term: term),
-                    ),
-                  ),
-                  icon: const Icon(Icons.add_rounded),
-                  label: const Text('添加课程'),
-                ),
-              ],
-            ),
-          ),
-        appBar: AppBar(
-          // 有背景图时不能用全透明：标题与“今日/本周”标签会直接压在图片上，
-          // 遇到深色或花哨的图就完全看不清。改用带透明度的表面色——图片仍能透出，
-          // 文字始终清晰。（AppBar 的 bottom 是 TabBar，一并被这层底色覆盖。）
-          backgroundColor: hasBackground
-              ? Theme.of(context).colorScheme.surface.withValues(alpha: 0.72)
-              : null,
-          elevation: hasBackground ? 0 : null,
-          scrolledUnderElevation: hasBackground ? 0 : null,
-          title: Text(term.name),
-          actions: [
-            IconButton(
-              tooltip: '作业',
-              onPressed: () => Navigator.push(context,
-                MaterialPageRoute<void>(builder: (_) => const TaskPage())),
-              icon: const Icon(Icons.assignment_outlined),
-            ),
-            IconButton(
-              tooltip: '导入课表',
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute<void>(
-                  builder: (_) => const ImportPreviewPage(),
-                ),
-              ),
-              icon: const Icon(Icons.file_upload_outlined),
-            ),
-            PopupMenuButton<String>(
-              onSelected: (value) {
-                if (value == 'term') {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute<void>(
-                      builder: (_) => TermSetupPage(initialTerm: term),
-                    ),
-                  );
-                } else if (value == 'notifications') {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute<void>(
-                      builder: (_) => const NotificationSettingsPage(),
-                    ),
-                  );
-                } else if (value == 'makeup') {
-                  _checkMakeupDays(context, ref);
-                } else if (value == 'tongji') {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute<void>(
-                      builder: (_) => const TongjiTimetablePage(),
-                    ),
-                  );
-                } else if (value == 'undo_import') {
-                  _undoImport(context, ref);
-                } else if (value == 'backup') {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute<void>(
-                      builder: (_) => const DataManagementPage(),
-                    ),
-                  );
-                } else if (value == 'swipe_mode') {
-                  _toggleSwipeMode(ref, swipeAdvancesWeek);
-                } else if (value == 'appearance') {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute<void>(
-                      builder: (_) => const AppearanceSettingsPage(),
-                    ),
-                  );
-                }
-              },
-              itemBuilder: (_) => [
-                const PopupMenuItem(value: 'tongji', child: Text('从同济1系统导入')),
-                const PopupMenuItem(value: 'notifications', child: Text('提醒设置')),
-                const PopupMenuItem(value: 'makeup', child: Text('检查国家调休')),
-                const PopupMenuItem(value: 'undo_import', child: Text('撤销上次导入')),
-                const PopupMenuItem(value: 'backup', child: Text('备份与恢复')),
-                const PopupMenuItem(value: 'term', child: Text('编辑学期与节次')),
-                PopupMenuItem(
-                  value: 'swipe_mode',
-                  child: Text(
-                    swipeAdvancesWeek ? '滑动切换：一周' : '滑动切换：一天',
-                  ),
-                ),
-                const PopupMenuItem(value: 'appearance', child: Text('外观设置')),
-              ],
-            ),
-          ],
-          bottom: const TabBar(
-            tabs: [
-              Tab(text: '今日'),
-              Tab(text: '本周'),
-            ],
-          ),
-        ),
-        body: Column(
-          children: [
-            _DateHeader(
-              date: selectedDate,
-              week: engine.getWeekForDate(selectedDate),
-              hasBackground: hasBackground,
-              onPrevious: () => _changeDate(ref, selectedDate, -1),
-              onNext: () => _changeDate(ref, selectedDate, 1),
-              onToday: () => ref.read(selectedDateProvider.notifier).state =
-                  _dateOnly(DateTime.now()),
-              onSelectWeek: () => _selectWeek(context, ref, term, selectedDate),
-            ),
-            if (engine.adjustmentForDate(selectedDate) case final adjustment?)
-              _AdjustmentBanner(
-                date: selectedDate,
-                actualWeek: engine.getWeekForDate(selectedDate),
-                adjustment: adjustment,
-                term: term,
-              ),
-            Expanded(
-              child: GestureDetector(
-                // 左右滑动切换日期；标签页自带的滑动已关闭，改由点顶部 Tab 切换。
-                onHorizontalDragEnd: (details) => _handleSwipe(
-                  ref,
-                  selectedDate,
-                  details.primaryVelocity ?? 0,
-                  swipeAdvancesWeek,
-                ),
-                child: TabBarView(
-                  physics: const NeverScrollableScrollPhysics(),
+      child: ScheduleBackdrop(
+        child: Builder(
+          builder: (context) {
+            final surface = ScheduleSurface.of(context);
+            final hasBackground = surface.hasImage;
+            return Scaffold(
+              backgroundColor: hasBackground ? Colors.transparent : null,
+              // Scaffold 按 endFloat 定位悬浮按钮，只保证「右边缘距屏幕 16」。
+              // Row 若撑满整屏（默认 mainAxisSize.max），左端就会被推到屏幕外裁掉，
+              // 两个按钮看起来不对称。这里把宽度收成「屏宽 - 左右各 16」，
+              // 让左右留白一致。
+              floatingActionButton: SizedBox(
+                width:
+                    MediaQuery.sizeOf(context).width -
+                    2 * kFloatingActionButtonMargin,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    _SlideOnDateChange(
-                      dateKey: selectedDate,
-                      direction: slideDirection,
-                      child: _TodayView(
-                        date: selectedDate,
-                        courses: engine.getEntriesForDate(selectedDate),
+                    // 左下角：整周课表。与右下角的“添加课程”左右对称。
+                    FloatingActionButton.extended(
+                      heroTag: 'full_timetable_fab',
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute<void>(
+                          builder: (_) => ScheduleBackdrop(
+                            child: FullTimetablePage(
+                              term: term,
+                              courses: data.courses,
+                            ),
+                          ),
+                        ),
                       ),
+                      icon: const Icon(Icons.grid_view_rounded),
+                      label: const Text('整周课表'),
                     ),
-                    _SlideOnDateChange(
-                      dateKey: selectedDate,
-                      direction: slideDirection,
-                      child: _WeekView(
-                        selectedDate: selectedDate,
-                        engine: engine,
+                    FloatingActionButton.extended(
+                      heroTag: 'add_course_fab',
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute<void>(
+                          builder: (_) => ManualCoursePage(term: term),
+                        ),
                       ),
+                      icon: const Icon(Icons.add_rounded),
+                      label: const Text('添加课程'),
                     ),
                   ],
                 ),
               ),
-            ),
-            SafeArea(
-              top: false,
-              minimum: const EdgeInsets.only(bottom: 6),
-              child: const _PoweredByFooter(),
-            ),
-          ],
+              appBar: AppBar(
+                // 有背景图时不能用全透明：标题与“今日/本周”标签会直接压在图片上，
+                // 遇到深色或花哨的图就完全看不清。改用带透明度的表面色——图片仍能透出，
+                // 文字始终清晰。（AppBar 的 bottom 是 TabBar，一并被这层底色覆盖。）
+                backgroundColor: hasBackground
+                    ? surface.headerColor(context)
+                    : null,
+                surfaceTintColor: Colors.transparent,
+                elevation: hasBackground ? 0 : null,
+                scrolledUnderElevation: hasBackground ? 0 : null,
+                title: Text(term.name),
+                actions: [
+                  IconButton(
+                    tooltip: '定位',
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(
+                        builder: (_) => const LocationPage(),
+                      ),
+                    ),
+                    icon: const Icon(Icons.location_on_outlined),
+                  ),
+                  IconButton(
+                    tooltip: '作业',
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(builder: (_) => const TaskPage()),
+                    ),
+                    icon: const Icon(Icons.assignment_outlined),
+                  ),
+                  IconButton(
+                    tooltip: '导入课表',
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(
+                        builder: (_) => const ImportPreviewPage(),
+                      ),
+                    ),
+                    icon: const Icon(Icons.file_upload_outlined),
+                  ),
+                  PopupMenuButton<String>(
+                    onSelected: (value) {
+                      if (value == 'term') {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute<void>(
+                            builder: (_) => TermSetupPage(initialTerm: term),
+                          ),
+                        );
+                      } else if (value == 'notifications') {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute<void>(
+                            builder: (_) => const NotificationSettingsPage(),
+                          ),
+                        );
+                      } else if (value == 'makeup') {
+                        _checkMakeupDays(context, ref);
+                      } else if (value == 'tongji') {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute<void>(
+                            builder: (_) => const TongjiTimetablePage(),
+                          ),
+                        );
+                      } else if (value == 'undo_import') {
+                        _undoImport(context, ref);
+                      } else if (value == 'backup') {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute<void>(
+                            builder: (_) => const DataManagementPage(),
+                          ),
+                        );
+                      } else if (value == 'swipe_mode') {
+                        _toggleSwipeMode(ref, swipeAdvancesWeek);
+                      } else if (value == 'appearance') {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute<void>(
+                            builder: (_) => const AppearanceSettingsPage(),
+                          ),
+                        );
+                      }
+                    },
+                    itemBuilder: (_) => [
+                      const PopupMenuItem(
+                        value: 'tongji',
+                        child: Text('从同济1系统导入'),
+                      ),
+                      const PopupMenuItem(
+                        value: 'notifications',
+                        child: Text('提醒设置'),
+                      ),
+                      const PopupMenuItem(
+                        value: 'makeup',
+                        child: Text('检查国家调休'),
+                      ),
+                      const PopupMenuItem(
+                        value: 'undo_import',
+                        child: Text('撤销上次导入'),
+                      ),
+                      const PopupMenuItem(
+                        value: 'backup',
+                        child: Text('备份与恢复'),
+                      ),
+                      const PopupMenuItem(
+                        value: 'term',
+                        child: Text('编辑学期与节次'),
+                      ),
+                      PopupMenuItem(
+                        value: 'swipe_mode',
+                        child: Text(swipeAdvancesWeek ? '滑动切换：一周' : '滑动切换：一天'),
+                      ),
+                      const PopupMenuItem(
+                        value: 'appearance',
+                        child: Text('外观设置'),
+                      ),
+                    ],
+                  ),
+                ],
+                bottom: const TabBar(
+                  tabs: [
+                    Tab(text: '今日'),
+                    Tab(text: '本周'),
+                  ],
+                ),
+              ),
+              body: Column(
+                children: [
+                  _DateHeader(
+                    date: selectedDate,
+                    week: engine.getWeekForDate(selectedDate),
+                    hasBackground: hasBackground,
+                    onPrevious: () => _changeDate(ref, selectedDate, -1),
+                    onNext: () => _changeDate(ref, selectedDate, 1),
+                    onToday: () =>
+                        ref.read(selectedDateProvider.notifier).state =
+                            _dateOnly(DateTime.now()),
+                    onSelectWeek: () =>
+                        _selectWeek(context, ref, term, selectedDate),
+                  ),
+                  if (engine.adjustmentForDate(selectedDate)
+                      case final adjustment?)
+                    _AdjustmentBanner(
+                      date: selectedDate,
+                      actualWeek: engine.getWeekForDate(selectedDate),
+                      adjustment: adjustment,
+                      term: term,
+                    ),
+                  Expanded(
+                    child: GestureDetector(
+                      // 左右滑动切换日期；标签页自带的滑动已关闭，改由点顶部 Tab 切换。
+                      onHorizontalDragEnd: (details) => _handleSwipe(
+                        ref,
+                        selectedDate,
+                        details.primaryVelocity ?? 0,
+                        swipeAdvancesWeek,
+                      ),
+                      child: TabBarView(
+                        physics: const NeverScrollableScrollPhysics(),
+                        children: [
+                          _SlideOnDateChange(
+                            dateKey: selectedDate,
+                            direction: slideDirection,
+                            child: _TodayView(
+                              date: selectedDate,
+                              courses: engine.getEntriesForDate(selectedDate),
+                            ),
+                          ),
+                          _SlideOnDateChange(
+                            dateKey: selectedDate,
+                            direction: slideDirection,
+                            child: _WeekView(
+                              selectedDate: selectedDate,
+                              engine: engine,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              // 独立预留底部高度，悬浮按钮由 Scaffold 自动避让署名。
+              bottomNavigationBar: SafeArea(
+                top: false,
+                minimum: const EdgeInsets.only(bottom: 6),
+                child: const SizedBox(
+                  width: double.infinity,
+                  child: _PoweredByFooter(),
+                ),
+              ),
+            );
+          },
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   void _changeDate(WidgetRef ref, DateTime date, int days) {
     // 记下方向，供日期内容做横向滑入动画。
@@ -636,7 +731,7 @@ class _DateHeader extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return ColoredBox(
       color: hasBackground
-          ? scheme.surface.withValues(alpha: 0.72)
+          ? ScheduleSurface.of(context).headerColor(context)
           : Colors.transparent,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 14, 12, 10),
@@ -696,7 +791,10 @@ class _DateHeader extends StatelessWidget {
                 ],
               ),
             ),
-            IconButton(onPressed: onNext, icon: const Icon(Icons.chevron_right)),
+            IconButton(
+              onPressed: onNext,
+              icon: const Icon(Icons.chevron_right),
+            ),
           ],
         ),
       ),
@@ -814,21 +912,13 @@ class _CourseCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final itemColor = Color(
-      switch (item) {
-        CourseEntry(course: final scheduled) => scheduled.course.colorValue,
-        MemoEntry(memo: final memo) => memo.colorValue,
-      },
-    );
+    final itemColor = Color(switch (item) {
+      CourseEntry(course: final scheduled) => scheduled.course.colorValue,
+      MemoEntry(memo: final memo) => memo.colorValue,
+    });
     // 卡片底色跟随设置，但只在真的有背景图时才调低：否则移除背景图后
     // 卡片会在纯色底上变成半透明，反而看不清。
-    final backgroundPath = ref.watch(backgroundImagePathProvider).valueOrNull;
-    final hasBackground =
-        backgroundPath != null && File(backgroundPath).existsSync();
-    final cardOpacity = hasBackground
-        ? ref.watch(cardOpacityProvider).valueOrNull ??
-              CardOpacityController.defaultOpacity
-        : CardOpacityController.defaultOpacity;
+    final cardOpacity = ScheduleSurface.of(context).cardOpacity;
     return Card(
       color: (Theme.of(context).cardTheme.color ?? Colors.white).withValues(
         alpha: cardOpacity,
@@ -864,7 +954,9 @@ class _CourseCard extends ConsumerWidget {
                         SizedBox(
                           width: 82,
                           child: Text(
-                            '${_timeText(item.startTime)}\n${_timeText(item.endTime)}',
+                            item.hasEndTime
+                                ? '${_timeText(item.startTime)}\n${_timeText(item.endTime)}'
+                                : _timeText(item.startTime),
                             style: const TextStyle(
                               fontSize: 11,
                               height: 1.5,
@@ -977,7 +1069,7 @@ class _CourseCard extends ConsumerWidget {
       ] else ...[
         '日期：${memo.date!.year}年${memo.date!.month}月${memo.date!.day}日'
             ' ${weekdayName(memo.date!.weekday)}',
-        '时间：${clockText(memo.startMinutes!)}-${clockText(memo.endMinutes!)}',
+        '时间：${clockText(memo.startMinutes!)}${memo.endMinutes == null ? '' : '-${clockText(memo.endMinutes!)}'}',
       ],
     ];
     await showDialog<void>(
@@ -1089,48 +1181,6 @@ class _CourseCard extends ConsumerWidget {
   }
 }
 
-/// 背景图 + 可调浓度的半透明遮罩。没有背景图时直接返回 [child]，
-/// 不额外套一层 Stack，保证未设置时的布局与从前完全一致。
-class _BackgroundImage extends StatelessWidget {
-  const _BackgroundImage({
-    required this.path,
-    required this.overlayOpacity,
-    required this.child,
-  });
-
-  final String? path;
-
-  /// 遮罩浓度，0.0 完全透明 ~ 1.0 全黑。由外观设置里的滑杆控制。
-  final double overlayOpacity;
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final filePath = path;
-    // 文件被删掉或路径失效时静默降级为无背景图。
-    if (filePath == null || !File(filePath).existsSync()) return child;
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Image.file(
-          File(filePath),
-          fit: BoxFit.cover,
-          // 图片解不开时只隐藏图片本身，不打断界面。
-          errorBuilder: (_, _, _) => const SizedBox.shrink(),
-        ),
-        if (overlayOpacity > 0)
-          IgnorePointer(
-            child: ColoredBox(
-              color: Color.fromRGBO(0, 0, 0, overlayOpacity.clamp(0.0, 1.0)),
-            ),
-          ),
-        child,
-      ],
-    );
-  }
-}
-
 /// 最近一次日期切换的方向：1 表示向后（更晚），-1 表示向前（更早）。
 /// 只用于给日期内容做一个横向滑入动画，让切换有方向感。
 final _dateChangeDirectionProvider = StateProvider<int>((ref) => 1);
@@ -1178,22 +1228,13 @@ class _EmptyCourses extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
-    final backgroundPath = ref.watch(backgroundImagePathProvider).valueOrNull;
-    final hasBackground =
-        backgroundPath != null && File(backgroundPath).existsSync();
+    final hasBackground = ScheduleSurface.of(context).hasImage;
     final content = Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(
-          Icons.free_breakfast_outlined,
-          size: 42,
-          color: scheme.outline,
-        ),
+        Icon(Icons.free_breakfast_outlined, size: 42, color: scheme.outline),
         const SizedBox(height: 12),
-        Text(
-          message,
-          style: TextStyle(color: scheme.onSurfaceVariant),
-        ),
+        Text(message, style: TextStyle(color: scheme.onSurfaceVariant)),
       ],
     );
     // 有背景图时给提示垫一层圆角底色，否则浅色文字压在图上读不清。
@@ -1201,7 +1242,7 @@ class _EmptyCourses extends ConsumerWidget {
     return Center(
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: scheme.surface.withValues(alpha: 0.72),
+          color: ScheduleSurface.of(context).headerColor(context),
           borderRadius: BorderRadius.circular(16),
         ),
         child: Padding(padding: const EdgeInsets.all(20), child: content),
@@ -1218,12 +1259,10 @@ class _PoweredByFooter extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
-    final backgroundPath = ref.watch(backgroundImagePathProvider).valueOrNull;
-    final hasBackground =
-        backgroundPath != null && File(backgroundPath).existsSync();
+    final hasBackground = ScheduleSurface.of(context).hasImage;
     return ColoredBox(
       color: hasBackground
-          ? scheme.surface.withValues(alpha: 0.72)
+          ? ScheduleSurface.of(context).headerColor(context)
           : Colors.transparent,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 6),

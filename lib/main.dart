@@ -6,11 +6,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'application/schedule_controller.dart';
 import 'application/startup_date.dart';
 import 'application/task_background_sync.dart';
+import 'data/schedule_database.dart';
 import 'domain/schedule_engine.dart';
 import 'notifications/notification_lifecycle.dart';
 import 'notifications/notification_service.dart';
 import 'presentation/app_theme.dart';
 import 'presentation/home_page.dart';
+import 'widget/widget_lifecycle.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -38,7 +40,7 @@ class CourseScheduleApp extends ConsumerStatefulWidget {
 
   final NotificationService? notificationService;
   final DateTime? initialDate;
-  final Future<void> Function()? initializeBackgroundSync;
+  final Future<void> Function(ScheduleDatabase)? initializeBackgroundSync;
 
   @override
   ConsumerState<CourseScheduleApp> createState() => _CourseScheduleAppState();
@@ -46,6 +48,7 @@ class CourseScheduleApp extends ConsumerStatefulWidget {
 
 class _CourseScheduleAppState extends ConsumerState<CourseScheduleApp> {
   bool _notificationsReady = false;
+  bool _optionalServicesStarted = false;
   DateTime? _initialDate;
 
   @override
@@ -55,15 +58,29 @@ class _CourseScheduleAppState extends ConsumerState<CourseScheduleApp> {
     if (widget.notificationService == null) unawaited(_applyStartupDate());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      // 首屏不等待系统插件；后台调度和通知初始化互不阻塞。
-      unawaited(_initializeBackgroundSync());
-      unawaited(_initializeNotifications());
+      _startOptionalServices();
     });
   }
 
+  void _startOptionalServices() {
+    if (!mounted ||
+        _optionalServicesStarted ||
+        !ref.read(scheduleControllerProvider).hasValue) {
+      return;
+    }
+    _optionalServicesStarted = true;
+    // 本机课表先读完，再独立启动附加服务。
+    unawaited(_initializeBackgroundSync());
+    unawaited(_initializeNotifications());
+  }
+
   Future<void> _initializeBackgroundSync() async {
+    final initialize = widget.initializeBackgroundSync;
+    if (initialize == null) return;
     try {
-      await widget.initializeBackgroundSync?.call();
+      final database = await ref.read(databaseProvider.future);
+      if (!mounted) return;
+      await initialize(database);
     } catch (error) {
       debugPrint('后台同步初始化失败：$error');
     }
@@ -117,9 +134,11 @@ class _CourseScheduleAppState extends ConsumerState<CourseScheduleApp> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(scheduleControllerProvider, (_, __) => _startOptionalServices());
+    final scheduleReady = ref.watch(scheduleControllerProvider).hasValue;
     // 设置尚未加载完成时先用缺省种子色，避免启动瞬间闪一下主题。
     final seedColor = Color(
-      ref.watch(themeSeedColorProvider).valueOrNull ??
+      (scheduleReady ? ref.watch(themeSeedColorProvider).valueOrNull : null) ??
           ThemeSeedColorController.defaultColorValue,
     );
     return MaterialApp(
@@ -128,13 +147,15 @@ class _CourseScheduleAppState extends ConsumerState<CourseScheduleApp> {
       theme: AppTheme.light(seedColor: seedColor),
       darkTheme: AppTheme.dark(seedColor: seedColor),
       themeMode: ThemeMode.system,
-      home: !_notificationsReady
-          ? const HomePage()
-          : NotificationLifecycle(
-              service: widget.notificationService!,
-              initialDate: _initialDate,
-              child: const HomePage(),
-            ),
+      home: WidgetLifecycle(
+        child: !_notificationsReady
+            ? const HomePage()
+            : NotificationLifecycle(
+                service: widget.notificationService!,
+                initialDate: _initialDate,
+                child: const HomePage(),
+              ),
+      ),
     );
   }
 }

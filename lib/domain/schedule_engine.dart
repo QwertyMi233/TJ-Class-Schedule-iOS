@@ -117,7 +117,7 @@ class ScheduleEngine {
       return MemoEntry(
         memo: memo,
         startTime: _atMinutes(date, memo.startMinutes!),
-        endTime: _atMinutes(date, memo.endMinutes!),
+        endTime: _atMinutes(date, memo.endMinutes ?? memo.startMinutes!),
       );
     }
     if (memo.weekday != effectiveWeekday || !memo.weekRule!.includes(week)) {

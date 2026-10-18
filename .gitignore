@@ -7,6 +7,12 @@ android/.gradle/
 android/local.properties
 work/
 outputs/
+artifacts/
+website/node_modules/
+website/dist/
+website/.wrangler/
+website/.npm-cache/
+website/public/downloads/*.zip
 tmp/
 .idea/
 .vscode/

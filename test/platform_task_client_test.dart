@@ -50,6 +50,52 @@ void main() {
       'true',
     );
   });
+  test('单门课程401没有认证挑战时继续同步其他课程', () async {
+    final http = FakeHttpClient((request) {
+      final path = request.uri.path;
+      if (path.endsWith('/profile')) return Reply({'id': 7});
+      if (path == '/api/v1/courses') {
+        return Reply([
+          {'id': 1},
+          {'id': 2},
+        ]);
+      }
+      if (path.contains('/2/')) return Reply({}, status: 401);
+      return Reply([
+        {'id': 10, 'name': '习题'},
+      ]);
+    });
+    final client = PlatformTaskClient(httpClient: http);
+    addTearDown(client.close);
+    final batch = await client.collectCanvas('fixture-token');
+    expect(batch.successfulCourses, 1);
+    expect(batch.tasks, hasLength(1));
+    expect(batch.warnings, hasLength(1));
+  });
+  test('Canvas只有401带认证挑战时要求重新连接', () async {
+    for (final (status, challenge, expected) in [
+      (401, false, false),
+      (401, true, true),
+      (403, false, false),
+    ]) {
+      final client = PlatformTaskClient(
+        httpClient: FakeHttpClient(
+          (_) => Reply({}, status: status, challenge: challenge),
+        ),
+      );
+      addTearDown(client.close);
+      await expectLater(
+        client.collectCanvas('fixture-token'),
+        throwsA(
+          isA<PlatformRequestException>().having(
+            (error) => error.requiresReauth,
+            'requiresReauth',
+            expected,
+          ),
+        ),
+      );
+    }
+  });
   test('Canvas 恶意跨域分页在发出请求前停止', () async {
     final http = canvasClient(
       next: '<https://evil.example/api/v1/steal>; rel="next"',
@@ -121,12 +167,19 @@ void main() {
               {
                 'columnName': '课程',
                 'subList': [
-                  {'columnId': 9, 'columnName': '课后作业'},
+                  {
+                    'columnId': 9,
+                    'columnName': '课后作业',
+                    'columnType': 30,
+                    'iconPath': 'icon-1.svg',
+                  },
                 ],
               },
             ],
           }),
         );
+      case '/api/learn/examine/examineList':
+        return Reply(envelope({'rowList': [], 'totalRowCount': 0}));
       case '/api/learn/task/listTaskType':
         return Reply(
           envelope({
@@ -158,7 +211,7 @@ void main() {
     }
   }
 
-  test('好课遍历嵌套栏目，使用真实账号 ID，已退回优先于完成', () async {
+  test('好课使用真实账号 ID，已退回优先于完成', () async {
     final http = FakeHttpClient((r) => haokeReply(r));
     final client = PlatformTaskClient(httpClient: http);
     addTearDown(client.close);
@@ -167,14 +220,83 @@ void main() {
     expect(batch.tasks.single.id, 'haoke:23:42:1');
     expect(batch.tasks.single.completed, isFalse);
     expect(batch.tasks.single.submissionState, 'returned');
-    final body = jsonDecode(http.requests.last.body.toString());
-    expect(body['taskTypes'], [1, 2]);
+    final body = jsonDecode(
+      http.requests
+          .firstWhere((r) => r.uri.path.endsWith('/listTask'))
+          .body
+          .toString(),
+    );
+    expect(body['taskTypes'], isEmpty);
+    expect(body.containsKey('columnId'), isFalse);
     expect(body['page'], {'pageNo': 1, 'pageSize': 50});
     expect(
       RegExp(
         r'^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$',
       ).hasMatch(body['requestId']),
       isTrue,
+    );
+  });
+  test('好课读取全部学习清单，不按栏目名称或任务类型过滤', () async {
+    final titles = [
+      '1.8 基础测验1',
+      '1.7 基础测验1',
+      '课程视频',
+      '阅读材料',
+      '课堂讨论',
+      '代码任务',
+      '实验任务',
+      '章节学习',
+      '自适应学习',
+    ];
+    final http = FakeHttpClient((request) {
+      if (!request.uri.path.endsWith('/listTask')) {
+        if (request.uri.path.endsWith('/queryClassInfo')) {
+          return Reply(envelope({'columnList': []}));
+        }
+        expect(request.uri.path.endsWith('/listTaskType'), isFalse);
+        return haokeReply(request);
+      }
+      final body = jsonDecode(request.body.toString());
+      expect(body['classId'], 42);
+      expect(body.containsKey('columnId'), isFalse);
+      expect(body['taskTypes'], isEmpty);
+      expect(body['status'], 0);
+      final start = body['page']['pageNo'] == 1 ? 0 : 5;
+      final end = start == 0 ? 5 : 9;
+      return Reply(
+        envelope({
+          'totalRowCount': 9,
+          'rowList': [
+            for (var i = start; i < end; i++)
+              {
+                'taskId': i + 1,
+                'taskName': titles[i],
+                'taskType': [50, 50, 10, 20, 30, 90, 70, 130, 120][i],
+                'myStatus': i == 2 ? 30 : 10,
+                'endTime': i == 0
+                    ? '2026-10-11 00:00:00'
+                    : i == 1
+                    ? '9999-12-31 00:00:00'
+                    : null,
+              },
+          ],
+        }),
+      );
+    });
+    final client = PlatformTaskClient(httpClient: http);
+    addTearDown(client.close);
+    final batch = await client.collectHaoke('fixture-token');
+    expect(batch.tasks, hasLength(9));
+    expect(batch.tasks.first.dueAt, DateTime.utc(2026, 10, 10, 16));
+    expect(batch.tasks[1].dueAt, isNull);
+    expect(batch.tasks[2].completed, isTrue);
+    expect(
+      batch.tasks.every((task) => !task.url.contains('columnId=null')),
+      isTrue,
+    );
+    expect(
+      http.requests.where((request) => request.uri.path.endsWith('/listTask')),
+      hasLength(2),
     );
   });
   test('好课重复分页停止，不保存不完整课程', () async {
@@ -205,6 +327,51 @@ void main() {
         ),
       );
       expect(http.requests, hasLength(status == 503 ? 2 : 1));
+      client.close();
+    }
+  });
+  test('免密码登录后独立验证账号，只读身份接口且不携带ticket', () async {
+    final http = FakeHttpClient(
+      (_) => Reply(
+        envelope({
+          'userInfo': {'userId': 42},
+        }),
+      ),
+    );
+    final client = PlatformTaskClient(httpClient: http);
+    addTearDown(client.close);
+    expect(await client.verifyHaokeAccount('new-fixture'), '42');
+    expect(
+      http.requests.single.uri.toString(),
+      'https://tongji.aihaoke.net/api/auth/queryCurrentUserInfo',
+    );
+    expect(
+      http.requests.single.headers.value('Authorization'),
+      'Bearer new-fixture',
+    );
+    expect(
+      jsonDecode(http.requests.single.body.toString()).containsKey('ticket'),
+      isFalse,
+    );
+    expect(http.requests.single.followRedirects, false);
+  });
+  test('账号验证拒绝业务401和缺失或非标量身份字段', () async {
+    for (final value in [
+      {'code': 401, 'data': {}},
+      envelope({'userInfo': {}}),
+      envelope({
+        'userInfo': {'userId': {}},
+      }),
+      envelope({
+        'userInfo': {'userId': ' '},
+      }),
+    ]) {
+      final http = FakeHttpClient((_) => Reply(value));
+      final client = PlatformTaskClient(httpClient: http);
+      await expectLater(
+        client.verifyHaokeAccount('fixture'),
+        throwsA(isA<PlatformRequestException>()),
+      );
       client.close();
     }
   });
@@ -250,13 +417,57 @@ void main() {
     );
     expect(http.requests, isEmpty);
   });
+  test('网络异常分类不含原始凭证，程序错误不误判为可重试断网', () async {
+    for (final (failure, kind) in [
+      (TimeoutException('secret-token'), 'timeout'),
+      (const SocketException('secret-token'), 'connection'),
+      (const HandshakeException('secret-token'), 'tls'),
+      (const HttpException('secret-token'), 'http_connection'),
+    ]) {
+      final client = PlatformTaskClient(
+        httpClient: FakeHttpClient((_) => throw failure),
+      );
+      try {
+        await expectLater(
+          client.verifyHaokeAccount('fixture'),
+          throwsA(
+            isA<PlatformNetworkException>()
+                .having((error) => error.kind, '分类', kind)
+                .having((error) => error.retryable, '可以补试', true)
+                .having(
+                  (error) => error.toString().contains('secret-token'),
+                  '没有敏感内容',
+                  false,
+                ),
+          ),
+        );
+      } finally {
+        client.close();
+      }
+    }
+    final client = PlatformTaskClient(
+      httpClient: FakeHttpClient((_) => throw StateError('bug')),
+    );
+    addTearDown(client.close);
+    await expectLater(
+      client.verifyHaokeAccount('fixture'),
+      throwsA(
+        isA<PlatformRequestException>().having(
+          (error) => error.retryable,
+          '程序错误不反复补试',
+          false,
+        ),
+      ),
+    );
+  });
 }
 
 class Reply {
-  Reply(this.data, {this.status = 200, this.link});
+  Reply(this.data, {this.status = 200, this.link, this.challenge = false});
   final Object data;
   final int status;
   final String? link;
+  final bool challenge;
 }
 
 class FakeHttpClient implements HttpClient {
@@ -321,6 +532,7 @@ class FakeHeaders implements HttpHeaders {
 class FakeResponse extends Stream<List<int>> implements HttpClientResponse {
   FakeResponse(this.reply) {
     if (reply.link != null) headers.set('link', reply.link!);
+    if (reply.challenge) headers.set('www-authenticate', 'Bearer');
   }
   final Reply reply;
   @override

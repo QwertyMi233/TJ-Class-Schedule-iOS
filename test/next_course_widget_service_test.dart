@@ -178,5 +178,15 @@ void main() {
     // 未自定义时传 null，原生侧据此删掉颜色键、恢复默认外观。
     await service.sync(schedule, now: DateTime(2026, 9, 14, 7));
     expect(payload?['color'], isNull);
+
+    // 首屏设置尚未读完时更新课程，不覆盖桌面已有外观。
+    await service.sync(
+      schedule,
+      now: DateTime(2026, 9, 14, 7),
+      updateAppearance: false,
+    );
+    expect(payload?.containsKey('color'), isFalse);
+    expect(payload?.containsKey('refreshMode'), isFalse);
+    expect((payload?['courses'] as List).single['name'], '高等数学');
   });
 }

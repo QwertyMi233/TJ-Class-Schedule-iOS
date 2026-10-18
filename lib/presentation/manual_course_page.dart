@@ -56,6 +56,7 @@ class _ManualCoursePageState extends ConsumerState<ManualCoursePage> {
   late DateTime _memoDate;
   var _memoStartMinutes = 9 * 60;
   var _memoEndMinutes = 10 * 60;
+  var _memoHasEnd = false;
   late int _memoColorValue;
   bool get _isEditing => widget.course != null && widget.session != null;
   bool get _isAddingSession => widget.course != null && widget.session == null;
@@ -102,7 +103,9 @@ class _ManualCoursePageState extends ConsumerState<ManualCoursePage> {
     _memoIsOneTime = memoDate != null;
     _memoDate = memoDate ?? DateTime.now();
     _memoStartMinutes = memo?.startMinutes ?? fallbackStart;
-    _memoEndMinutes = memo?.endMinutes ?? fallbackStart + 60;
+    _memoEndMinutes =
+        memo?.endMinutes ?? (_memoStartMinutes + 60).clamp(0, 1440);
+    _memoHasEnd = memo?.endMinutes != null;
     _memoColorValue = memo?.colorValue ?? _defaultMemoColor();
   }
 
@@ -223,9 +226,7 @@ class _ManualCoursePageState extends ConsumerState<ManualCoursePage> {
             onPressed: _save,
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Text(
-                _type == _EntryType.memo ? '保存备忘录' : '保存课程',
-              ),
+              child: Text(_type == _EntryType.memo ? '保存备忘录' : '保存课程'),
             ),
           ),
           if (_type == _EntryType.memo) ...[
@@ -293,12 +294,25 @@ class _ManualCoursePageState extends ConsumerState<ManualCoursePage> {
           trailing: Text(_minutesText(_memoStartMinutes)),
           onTap: () => _pickMemoTime(isStart: true),
         ),
-        ListTile(
+        SwitchListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text('结束时刻'),
-          trailing: Text(_minutesText(_memoEndMinutes)),
-          onTap: () => _pickMemoTime(isStart: false),
+          title: const Text('设置结束时刻'),
+          subtitle: const Text('可选；关闭后只按开始时刻提醒'),
+          value: _memoHasEnd,
+          onChanged: (value) => setState(() {
+            _memoHasEnd = value;
+            if (value && _memoEndMinutes <= _memoStartMinutes) {
+              _memoEndMinutes = (_memoStartMinutes + 60).clamp(0, 1440);
+            }
+          }),
         ),
+        if (_memoHasEnd)
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('结束时刻'),
+            trailing: Text(_minutesText(_memoEndMinutes)),
+            onTap: () => _pickMemoTime(isStart: false),
+          ),
       ] else ...[
         DropdownButtonFormField<int>(
           initialValue: _weekday,
@@ -311,8 +325,7 @@ class _ManualCoursePageState extends ConsumerState<ManualCoursePage> {
             if (value == null) return;
             setState(() {
               _weekday = value;
-              final available =
-                  widget.term.periodsByWeekday[value] ?? const [];
+              final available = widget.term.periodsByWeekday[value] ?? const [];
               _startPeriod = available.isEmpty ? 1 : available.first.number;
               _endPeriod = available.length > 1
                   ? available[1].number
@@ -426,7 +439,7 @@ class _ManualCoursePageState extends ConsumerState<ManualCoursePage> {
       return false;
     }
     if (_memoIsOneTime) {
-      if (_memoEndMinutes <= _memoStartMinutes) {
+      if (_memoHasEnd && _memoEndMinutes <= _memoStartMinutes) {
         _showMessage('结束时刻必须晚于开始时刻');
         return false;
       }
@@ -551,7 +564,7 @@ class _ManualCoursePageState extends ConsumerState<ManualCoursePage> {
       weekRule: _memoIsOneTime ? null : weekRule,
       date: _memoIsOneTime ? _memoDate : null,
       startMinutes: _memoIsOneTime ? _memoStartMinutes : null,
-      endMinutes: _memoIsOneTime ? _memoEndMinutes : null,
+      endMinutes: _memoIsOneTime && _memoHasEnd ? _memoEndMinutes : null,
     );
     final notifier = ref.read(scheduleControllerProvider.notifier);
     if (oldMemo == null) {
@@ -567,7 +580,8 @@ class _ManualCoursePageState extends ConsumerState<ManualCoursePage> {
     }
   }
 
-  Future<bool> _confirmConflicts(List<CourseConflict> conflicts) async {    final conflict = conflicts.first;
+  Future<bool> _confirmConflicts(List<CourseConflict> conflicts) async {
+    final conflict = conflicts.first;
     return await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(

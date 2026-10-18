@@ -16,13 +16,15 @@ class NextCourseWidgetService {
     DateTime? now,
     int? colorValue,
     WidgetRefreshMode? refreshMode,
+    bool updateAppearance = true,
   }) async {
     final current = now ?? DateTime.now();
     final items = buildItems(schedule, current);
     await _channel.invokeMethod<void>('update', {
       'courses': items,
-      'color': colorValue,
-      'refreshMode': (refreshMode ?? WidgetRefreshMode.powerSaving).name,
+      if (updateAppearance) 'color': colorValue,
+      if (updateAppearance)
+        'refreshMode': (refreshMode ?? WidgetRefreshMode.powerSaving).name,
     });
   }
 

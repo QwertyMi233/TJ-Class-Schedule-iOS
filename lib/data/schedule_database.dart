@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
@@ -15,14 +17,24 @@ class ScheduleDatabase {
     bool singleInstance = true,
   }) async {
     final selectedFactory = factory ?? databaseFactory;
+    if (Platform.isAndroid && factory == null) {
+      // 前后台各有连接；留一个 worker 让持锁连接能提交，避免另一连接等锁堵住队列。
+      // ignore: deprecated_member_use
+      final options = SqfliteOptions()..androidThreadCount = 2;
+      // ignore: deprecated_member_use
+      await Sqflite.devSetOptions(options);
+    }
     final databasePath =
         path ?? p.join(await getDatabasesPath(), 'schedule.db');
     final database = await selectedFactory.openDatabase(
       databasePath,
       options: OpenDatabaseOptions(
-        version: 8,
+        version: 10,
         singleInstance: singleInstance,
-        onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
+        onConfigure: (db) async {
+          await db.rawQuery('PRAGMA journal_mode = WAL');
+          await db.execute('PRAGMA foreign_keys = ON');
+        },
         onCreate: _createTables,
         onUpgrade: (db, oldVersion, newVersion) async {
           if (oldVersion < 2) await _createSettingsTable(db);
@@ -33,7 +45,7 @@ class ScheduleDatabase {
             );
           }
           if (oldVersion < 5) await _createCourseCancellationsTable(db);
-          if (oldVersion < 6) {
+          if (oldVersion >= 3 && oldVersion < 6) {
             await db.execute(
               'ALTER TABLE national_makeup_days ADD COLUMN is_holiday INTEGER NOT NULL DEFAULT 0',
             );
@@ -43,6 +55,19 @@ class ScheduleDatabase {
           }
           if (oldVersion < 7) await _createMemosTable(db);
           if (oldVersion < 8) await _createTasksTable(db);
+          if (oldVersion >= 8 && oldVersion < 9) {
+            await db.execute(
+              'ALTER TABLE tasks ADD COLUMN haoke_categories INTEGER NOT NULL DEFAULT 0',
+            );
+          }
+          if (oldVersion < 10) {
+            await db.execute(
+              "UPDATE tasks SET haoke_categories = (haoke_categories & ~4) | CASE WHEN (haoke_categories & 4) != 0 THEN 1 ELSE 0 END WHERE platform = 'haoke'",
+            );
+            await db.execute(
+              "UPDATE app_settings SET value = CAST(CASE WHEN CAST(value AS INTEGER) = 15 THEN 31 ELSE (CAST(value AS INTEGER) & 11) | CASE WHEN (CAST(value AS INTEGER) & 4) != 0 THEN 1 ELSE 0 END END AS TEXT) WHERE key = 'task_haoke_visible_categories'",
+            );
+          }
         },
       ),
     );
@@ -173,12 +198,23 @@ class ScheduleDatabase {
         url TEXT NOT NULL,
         note TEXT NOT NULL,
         synced_at TEXT,
-        submission_state TEXT
+        submission_state TEXT,
+        haoke_categories INTEGER NOT NULL DEFAULT 0
       )
     ''');
   }
 
   static Future<void> _seedNationalMakeupDays(Database db) async {
+    const seedKey = '_builtin_calendar_2026';
+    final seeded = await db.query(
+      'app_settings',
+      columns: ['value'],
+      where: 'key = ?',
+      whereArgs: [seedKey],
+      limit: 1,
+    );
+    if (seeded.isNotEmpty && seeded.first['value'] == '1') return;
+    final batch = db.batch();
     const makeupDates = [
       '2026-01-04',
       '2026-02-14',
@@ -188,7 +224,7 @@ class ScheduleDatabase {
       '2026-10-10',
     ];
     for (final date in makeupDates) {
-      await db.insert('national_makeup_days', {
+      batch.insert('national_makeup_days', {
         'date': date,
       }, conflictAlgorithm: ConflictAlgorithm.ignore);
     }
@@ -206,7 +242,7 @@ class ScheduleDatabase {
         var date = DateTime.parse(range.$1);
         final end = DateTime.parse(range.$2);
         while (!date.isAfter(end)) {
-          await db.insert('national_makeup_days', {
+          batch.insert('national_makeup_days', {
             'date': _dateKey(date),
             'is_holiday': 1,
             'holiday_name': entry.key,
@@ -215,6 +251,12 @@ class ScheduleDatabase {
         }
       }
     }
+    batch.insert('app_settings', {
+      'key': seedKey,
+      'value': '1',
+    }, conflictAlgorithm: ConflictAlgorithm.ignore);
+    // 初始化时可能有后台连接；不把事务锁跨多次原生调用持有。
+    await batch.apply(noResult: true);
   }
 
   Future<void> replaceTermSchedule(Term term, Iterable<Course> courses) async {

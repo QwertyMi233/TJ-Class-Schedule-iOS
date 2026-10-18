@@ -1,0 +1,9 @@
+{
+  "version": "0.3.0",
+  "versionCode": 2012,
+  "abi": "arm64-v8a",
+  "publishedOn": "2026-10-18",
+  "download": "/downloads/TJ-Class-Schedule-v0.3.0-arm64-v8a.zip",
+  "apkSha256": "efde51e7e7c7675c25a869680cdf52141dc7ae2d1a64ffa2b815e7b894395768",
+  "zipSha256": "96d72f3c8fbf506dfd00363c532ea65cbffe490d537eeaf252c290e9cf6dbffb"
+}

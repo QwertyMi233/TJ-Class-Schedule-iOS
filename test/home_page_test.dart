@@ -16,6 +16,7 @@ void main() {
 
     expect(find.text('先设置你的学期'), findsOneWidget);
     expect(find.text('开始设置'), findsOneWidget);
+    expect(find.byTooltip('定位'), findsOneWidget);
   });
 
   testWidgets('今日课程可见，横向拖动不再切换标签页', (tester) async {
@@ -59,6 +60,7 @@ void main() {
     expect(find.text('添加课程'), findsOneWidget);
     expect(find.text('Powered by Algernon'), findsOneWidget);
     expect(find.byTooltip('作业'), findsOneWidget);
+    expect(find.byTooltip('定位'), findsOneWidget);
 
     // 点一下打开课程详情（用来与 1 系统「排课信息」对照，排查识别问题），
     // 不再直接进入编辑。详情面板里有「上课周」字段，只有它会出现。

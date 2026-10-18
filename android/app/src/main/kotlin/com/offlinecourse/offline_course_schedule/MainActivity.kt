@@ -2,11 +2,10 @@ package com.offlinecourse.offline_course_schedule
 
 import android.content.Intent
 import io.flutter.embedding.engine.FlutterEngine
-import io.flutter.embedding.android.FlutterActivity
 import io.flutter.plugin.common.MethodChannel
 import org.json.JSONArray
 
-class MainActivity : FlutterActivity() {
+class MainActivity : LocationActivity() {
     private var widgetChannel: MethodChannel? = null
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
@@ -54,15 +53,20 @@ class MainActivity : FlutterActivity() {
             val editor = getSharedPreferences(NextCourseWidget.PREFS_NAME, MODE_PRIVATE)
                 .edit()
                 .putString(NextCourseWidget.COURSES_KEY, JSONArray(courses).toString())
-            if (refreshMode == null) {
-                editor.remove(NextCourseWidget.REFRESH_MODE_KEY)
-            } else {
-                editor.putString(NextCourseWidget.REFRESH_MODE_KEY, refreshMode)
+            // 首屏先更新课程；设置未读完时沿用小组件已保存的外观。
+            if (call.hasArgument("refreshMode")) {
+                if (refreshMode == null) {
+                    editor.remove(NextCourseWidget.REFRESH_MODE_KEY)
+                } else {
+                    editor.putString(NextCourseWidget.REFRESH_MODE_KEY, refreshMode)
+                }
             }
-            if (color == null) {
-                editor.remove(NextCourseWidget.COLOR_KEY)
-            } else {
-                editor.putInt(NextCourseWidget.COLOR_KEY, color)
+            if (call.hasArgument("color")) {
+                if (color == null) {
+                    editor.remove(NextCourseWidget.COLOR_KEY)
+                } else {
+                    editor.putInt(NextCourseWidget.COLOR_KEY, color)
+                }
             }
             editor.apply()
             NextCourseWidget.updateAll(this)

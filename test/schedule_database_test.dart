@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:offline_course_schedule/data/schedule_database.dart';
 import 'package:offline_course_schedule/domain/notification_settings.dart';
@@ -6,6 +8,75 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 void main() {
   setUpAll(sqfliteFfiInit);
+
+  for (final version in [1, 2]) {
+    test('v$version 本机课表升级后保留原课程且没有重复列错误', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'tj-schema-upgrade-',
+      );
+      final path = '${directory.path}/schedule.db';
+      addTearDown(() async {
+        if (directory.path.startsWith(Directory.systemTemp.path)) {
+          await directory.delete(recursive: true);
+        }
+      });
+      final original = await ScheduleDatabase.open(
+        factory: databaseFactoryFfi,
+        path: path,
+      );
+      await original.replaceTermSchedule(
+        Term(
+          id: 'current-term',
+          name: '原学期',
+          firstWeekMonday: DateTime(2026, 9, 7),
+          totalWeeks: 20,
+          periodsByWeekday: {},
+        ),
+        [
+          Course(
+            id: 'old-course',
+            name: '原课程',
+            teacher: '老师',
+            colorValue: 1,
+            sessions: [],
+          ),
+        ],
+      );
+      for (final table in [
+        'national_makeup_days',
+        'course_cancellations',
+        'memos',
+        'tasks',
+      ]) {
+        await original.database.execute('DROP TABLE $table');
+      }
+      // 旧版本设置表中不存在后来新增的内置日历初始化标记。
+      await original.database.delete(
+        'app_settings',
+        where: 'key = ?',
+        whereArgs: ['_builtin_calendar_2026'],
+      );
+      if (version == 1) {
+        await original.database.execute('DROP TABLE app_settings');
+      }
+      await original.database.setVersion(version);
+      await original.close();
+      final upgraded = await ScheduleDatabase.open(
+        factory: databaseFactoryFfi,
+        path: path,
+      );
+      try {
+        final schedule = await upgraded.loadTermSchedule('current-term');
+        expect(schedule!.term.name, '原学期');
+        expect(schedule.courses.single.name, '原课程');
+        expect(await upgraded.database.getVersion(), 10);
+        expect(await upgraded.loadScheduleAdjustments(), isNotEmpty);
+        expect(await upgraded.loadMemos('current-term'), isEmpty);
+      } finally {
+        await upgraded.close();
+      }
+    });
+  }
 
   test('学期、节次、课程及多个时间段可完整往返数据库', () async {
     final db = await ScheduleDatabase.open(

@@ -6,11 +6,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../application/schedule_controller.dart';
 import '../application/task_state.dart';
+import '../application/task_sync_controller.dart';
 import '../presentation/task_page.dart';
 import '../widget/task_widget_service.dart';
 import '../presentation/magic_os_guide_page.dart';
 import '../presentation/tutorial_page.dart';
-import '../widget/next_course_widget_service.dart';
 import 'notification_service.dart';
 
 class NotificationLifecycle extends ConsumerStatefulWidget {
@@ -38,7 +38,6 @@ class _NotificationLifecycleState extends ConsumerState<NotificationLifecycle>
   bool _syncing = false;
   bool _resyncRequested = false;
   bool _holidayChecked = false;
-  final _widgetService = const NextCourseWidgetService();
 
   @override
   void initState() {
@@ -59,12 +58,27 @@ class _NotificationLifecycleState extends ConsumerState<NotificationLifecycle>
       await widget.service.requestAndroidPermissions();
       await _syncNotifications();
       await _checkNationalMakeupDays();
+      unawaited(_maintainTaskConnections());
     });
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) unawaited(_syncNotifications());
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_syncNotifications());
+      unawaited(_maintainTaskConnections());
+    }
+  }
+
+  Future<void> _maintainTaskConnections() async {
+    try {
+      final db = await ref.read(databaseProvider.future);
+      if (!mounted || await db.loadSetting('task_auto_sync') != 'true') return;
+      final service = await ref.read(taskSyncServiceProvider.future);
+      if (mounted) await service.refresh();
+    } catch (_) {
+      // 后台维护失败时保留本机数据，用户仍可正常使用课表。
+    }
   }
 
   @override
@@ -96,14 +110,6 @@ class _NotificationLifecycleState extends ConsumerState<NotificationLifecycle>
       (_, __) => unawaited(_syncNotifications()),
     );
     ref.listen(notificationSettingsProvider, (_, next) {
-      unawaited(_syncNotifications());
-    });
-    // 小组件颜色是它自己的设置，改完同样走上面那套同步把颜色推到桌面。
-    ref.listen(widgetColorProvider, (_, __) {
-      unawaited(_syncNotifications());
-    });
-    // 刷新频率要立刻推到原生侧，否则用户改完得等下次启动才生效。
-    ref.listen(widgetRefreshModeProvider, (_, __) {
       unawaited(_syncNotifications());
     });
     return widget.child;
@@ -171,10 +177,6 @@ class _NotificationLifecycleState extends ConsumerState<NotificationLifecycle>
     final schedule = ref.read(scheduleControllerProvider).valueOrNull;
     final settings = ref.read(notificationSettingsProvider).valueOrNull;
     if (schedule == null || settings == null) return;
-    final widgetColor = ref.read(widgetColorProvider).valueOrNull;
-    final refreshMode =
-        ref.read(widgetRefreshModeProvider).valueOrNull ??
-        WidgetRefreshModeController.defaultMode;
     _syncing = true;
     try {
       await widget.service.reschedule(schedule: schedule, settings: settings);
@@ -182,22 +184,16 @@ class _NotificationLifecycleState extends ConsumerState<NotificationLifecycle>
       final taskSettings = ref.read(taskReminderSettingsProvider).valueOrNull;
       if (repository != null && taskSettings != null) {
         final tasks = await repository.loadVisible();
-        await const TaskWidgetService().sync(tasks);
         await widget.service.rescheduleTasks(
           tasks: tasks,
           settings: taskSettings,
         );
       }
-      await _widgetService.sync(
-        schedule,
-        colorValue: widgetColor,
-        refreshMode: refreshMode,
-      );
     } on PlatformException {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('通知或小组件更新失败，请检查系统通知权限后重新打开 App')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('通知更新失败，请检查系统通知权限')));
       }
     } finally {
       _syncing = false;

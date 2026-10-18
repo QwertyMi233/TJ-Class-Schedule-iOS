@@ -3,16 +3,18 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'schedule_background.dart';
 
 /// 背景图裁剪页：在一个与屏幕同比例的取景框里拖动/缩放图片，框内所见即最终效果。
 ///
-/// 顶部可切换遮罩预览——主界面会在背景图上叠一层固定的半透明黑遮罩，
+/// 顶部可切换遮罩预览——主界面会叠加随深浅主题变化的半透明遮罩，
 /// 打开遮罩时看到的就是实际观感。确认后返回裁剪好的 PNG 字节（取消返回 null）。
 class BackgroundCropPage extends StatefulWidget {
   const BackgroundCropPage({
     required this.imageBytes,
     this.overlayOpacity = 0.55,
     this.cardOpacity = 1.0,
+    this.blur = 0,
     super.key,
   });
 
@@ -23,6 +25,7 @@ class BackgroundCropPage extends StatefulWidget {
 
   /// 课程卡片不透明度，用于预览时还原真实观感。
   final double cardOpacity;
+  final double blur;
 
   @override
   State<BackgroundCropPage> createState() => _BackgroundCropPageState();
@@ -33,6 +36,7 @@ class _BackgroundCropPageState extends State<BackgroundCropPage> {
   ui.Image? _image;
   String? _error;
   bool _showOverlay = true;
+  Size? _visibleFrame;
   bool _busy = false;
 
   /// 输出图片的最大边长，避免整张 4K 图原样存进手机。
@@ -54,7 +58,12 @@ class _BackgroundCropPageState extends State<BackgroundCropPage> {
   Future<void> _load() async {
     try {
       final codec = await ui.instantiateImageCodec(widget.imageBytes);
-      final frame = await codec.getNextFrame();
+      final ui.FrameInfo frame;
+      try {
+        frame = await codec.getNextFrame();
+      } finally {
+        codec.dispose();
+      }
       if (!mounted) {
         frame.image.dispose();
         return;
@@ -113,7 +122,6 @@ class _BackgroundCropPageState extends State<BackgroundCropPage> {
           ? const Center(child: CircularProgressIndicator())
           : LayoutBuilder(
               builder: (context, constraints) {
-                final frame = _frameSize(context, constraints);
                 return Column(
                   children: [
                     Padding(
@@ -125,28 +133,35 @@ class _BackgroundCropPageState extends State<BackgroundCropPage> {
                       ),
                     ),
                     Expanded(
-                      child: Center(
-                        child: _CropFrame(
-                          controller: _controller,
-                          frame: frame,
-                          showOverlay: _showOverlay,
-                          overlayColor: Color.fromRGBO(
-                            0,
-                            0,
-                            0,
-                            widget.overlayOpacity.clamp(0.0, 1.0),
-                          ),
-                          preview: _showOverlay
-                              ? _TimetablePreview(
-                                  cardOpacity: widget.cardOpacity,
-                                )
-                              : null,
-                          child: Image.memory(
-                            widget.imageBytes,
-                            fit: BoxFit.cover,
-                            gaplessPlayback: true,
-                          ),
-                        ),
+                      child: LayoutBuilder(
+                        builder: (context, viewport) {
+                          final frame = _frameSize(context, viewport);
+                          _visibleFrame = frame;
+                          return Center(
+                            child: _CropFrame(
+                              controller: _controller,
+                              frame: frame,
+                              showOverlay: _showOverlay,
+                              overlayColor: scheduleBackgroundScrim(
+                                Theme.of(context).brightness,
+                                widget.overlayOpacity,
+                              ),
+                              preview: _showOverlay
+                                  ? _TimetablePreview(
+                                      cardOpacity: widget.cardOpacity,
+                                    )
+                                  : null,
+                              child: scheduleBlurredImage(
+                                Image.memory(
+                                  widget.imageBytes,
+                                  fit: BoxFit.cover,
+                                  gaplessPlayback: true,
+                                ),
+                                _showOverlay ? widget.blur : 0,
+                              ),
+                            ),
+                          );
+                        },
                       ),
                     ),
                     SafeArea(
@@ -168,7 +183,11 @@ class _BackgroundCropPageState extends State<BackgroundCropPage> {
                               child: FilledButton(
                                 onPressed: _busy
                                     ? null
-                                    : () => _confirm(frame),
+                                    : () {
+                                        if (_visibleFrame case final frame?) {
+                                          _confirm(frame);
+                                        }
+                                      },
                                 child: const Text('使用这一部分'),
                               ),
                             ),
@@ -264,37 +283,55 @@ class _TimetablePreview extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return IgnorePointer(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // 顶部标题栏与标签栏的示意。
-            Row(
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.topCenter,
+        child: SizedBox(
+          width: 360,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  child: Text(
-                    '9月18日 · 第 4 周',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: scheme.onSurface,
+                // 顶部标题栏与标签栏的示意。
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '9月18日 · 第 4 周',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: scheme.onSurface,
+                        ),
+                      ),
                     ),
-                  ),
+                    Text(
+                      '今日',
+                      style: TextStyle(fontSize: 11, color: scheme.onSurface),
+                    ),
+                  ],
                 ),
-                Text(
-                  '今日',
-                  style: TextStyle(fontSize: 11, color: scheme.onSurface),
+                const SizedBox(height: 8),
+                _previewCard(scheme, '高等数学', '08:00-09:40 · 南129', 0xFF7D9DCE),
+                const SizedBox(height: 6),
+                _previewCard(
+                  scheme,
+                  '大学物理B2',
+                  '10:00-11:40 · 瑞安楼阶1',
+                  0xFF7FB69D,
+                ),
+                const SizedBox(height: 6),
+                _previewCard(
+                  scheme,
+                  '英语写作III',
+                  '13:30-15:10 · 彰武北 409',
+                  0xFFD0B36C,
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            _previewCard(scheme, '高等数学', '08:00-09:40 · 南129', 0xFF7D9DCE),
-            const SizedBox(height: 6),
-            _previewCard(scheme, '大学物理B2', '10:00-11:40 · 瑞安楼阶1', 0xFF7FB69D),
-            const SizedBox(height: 6),
-            _previewCard(scheme, '英语写作III', '13:30-15:10 · 彰武北 409', 0xFFD0B36C),
-          ],
+          ),
         ),
       ),
     );
@@ -367,8 +404,9 @@ Future<Uint8List> cropBackgroundImage({
   double maxOutputSide = 2400,
 }) async {
   final rect = cropRectFor(matrix: matrix, frame: frame, image: image);
-  final scale = (maxOutputSide / (rect.width > rect.height ? rect.width : rect.height))
-      .clamp(0.0, 1.0);
+  final scale =
+      (maxOutputSide / (rect.width > rect.height ? rect.width : rect.height))
+          .clamp(0.0, 1.0);
   final outputWidth = (rect.width * scale).round().clamp(1, 1 << 16);
   final outputHeight = (rect.height * scale).round().clamp(1, 1 << 16);
 

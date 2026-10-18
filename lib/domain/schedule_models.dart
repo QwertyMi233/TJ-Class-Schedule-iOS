@@ -56,9 +56,11 @@ class WeekRule {
         end++;
       }
       // 连续三段以上才合并成区间，否则逐个列出更好读。
-      parts.add(end - index >= 2
-          ? '${weeks[index]}-${weeks[end]}'
-          : weeks.sublist(index, end + 1).join(','));
+      parts.add(
+        end - index >= 2
+            ? '${weeks[index]}-${weeks[end]}'
+            : weeks.sublist(index, end + 1).join(','),
+      );
       index = end + 1;
     }
     return '${parts.join(',')}周';
@@ -235,7 +237,7 @@ class CourseSession {
 ///
 /// 一条备忘录只描述一个时间，因此两种时间类型有且只有一种生效：按周重复时使用
 /// [weekday]、[startPeriod]、[endPeriod] 和 [weekRule]；一次性时使用 [date]、
-/// [startMinutes] 和 [endMinutes]。混用或都不填都会抛出 [ArgumentError]。
+/// [startMinutes]，并可选填 [endMinutes]。混用或都不填都会抛出 [ArgumentError]。
 class Memo {
   Memo({
     required this.id,
@@ -249,9 +251,7 @@ class Memo {
     DateTime? date,
     this.startMinutes,
     this.endMinutes,
-  }) : date = date == null
-           ? null
-           : DateTime(date.year, date.month, date.day) {
+  }) : date = date == null ? null : DateTime(date.year, date.month, date.day) {
     if (title.trim().isEmpty) {
       throw ArgumentError('备忘录标题不能为空');
     }
@@ -287,13 +287,14 @@ class Memo {
       if (hasRepeat) {
         throw ArgumentError('一次性备忘录不能设置星期、节次或周次规则');
       }
-      if (startMinutes == null || endMinutes == null) {
-        throw ArgumentError('一次性备忘录必须同时提供起止时刻');
+      if (startMinutes == null) {
+        throw ArgumentError('一次性备忘录必须提供开始时刻');
       }
       if (startMinutes! < 0 || startMinutes! >= 24 * 60) {
         throw ArgumentError('备忘录起始时刻必须在 0 到 1439 分钟之间');
       }
-      if (endMinutes! <= startMinutes! || endMinutes! > 24 * 60) {
+      if (endMinutes != null &&
+          (endMinutes! <= startMinutes! || endMinutes! > 24 * 60)) {
         throw ArgumentError('备忘录结束时刻必须晚于起始时刻且不超过 1440 分钟');
       }
     }
@@ -354,6 +355,9 @@ sealed class ScheduleEntry {
 
   /// 这条安排是否为备忘录（用于区分提醒的提前时间与文案）。
   bool get isMemo;
+
+  /// 时点备忘录只显示开始时刻；内部排序边界使用同一个时刻。
+  bool get hasEndTime => true;
 }
 
 class CourseEntry extends ScheduleEntry {
@@ -383,6 +387,9 @@ class MemoEntry extends ScheduleEntry {
   });
 
   final Memo memo;
+
+  @override
+  bool get hasEndTime => memo.isRecurring || memo.endMinutes != null;
 
   @override
   final DateTime startTime;

@@ -30,6 +30,9 @@ class FakeClient extends PlatformTaskClient {
     renewals++;
     return const HaokeCredentials(token: 'rotated', ticket: 'new-ticket');
   }
+
+  @override
+  Future<String> verifyHaokeAccount(String token) async => 'a';
 }
 
 PlatformTaskBatch batch({
@@ -118,20 +121,57 @@ void main() {
       '暂时失败',
       client.haokeCalls == 1 ? 401 : 503,
     );
-    await service.refresh(manual: true);
+    await db.saveSetting(
+      'task_haoke_login_attempt',
+      DateTime.now().toIso8601String(),
+    );
+    await service.refresh();
     expect(client.renewals, 1);
     expect(jsonDecode((await store.read('haoke'))!)['ticket'], 'new-ticket');
     expect(await db.loadSetting('task_haoke_needs_auth'), 'false');
   });
-  test('403暂停自动请求，不触发续期', () async {
+  test('403暂停后续自动请求，不再重复登录', () async {
     await connectBoth();
     client.haoke = () async =>
         throw const PlatformRequestException('权限不足', 403);
     await service.refresh(manual: true);
     await service.refresh();
     expect(client.haokeCalls, 1);
-    expect(client.renewals, 0);
+    expect(client.renewals, 1);
     expect(await store.activeAccount('haoke'), 'a');
+  });
+  test('Canvas权限错误保留自动同步，真实认证失败才暂停和通知', () async {
+    await store.save('canvas', 'a', 'fixture');
+    var notifications = 0;
+    service = TaskSyncService(
+      db,
+      client: client,
+      credentials: store,
+      onAuthRequired: (_) async {
+        notifications++;
+      },
+    );
+    for (final status in [401, 403]) {
+      client.canvas = () async =>
+          throw PlatformRequestException('权限不足', status, false, false);
+      await service.refresh(manual: true);
+      expect(await db.loadSetting('task_canvas_needs_auth'), 'false');
+      await db.deleteSetting('task_canvas_attempt');
+      final previous = client.canvasCalls;
+      await service.refresh();
+      expect(client.canvasCalls, previous + 1);
+      expect(notifications, 0);
+    }
+    client.canvas = () async =>
+        throw const PlatformRequestException('认证失败', 401, false, true);
+    await db.deleteSetting('task_canvas_attempt');
+    await service.refresh();
+    expect(await db.loadSetting('task_canvas_needs_auth'), 'true');
+    expect(notifications, 1);
+    final previous = client.canvasCalls;
+    await service.refresh();
+    expect(client.canvasCalls, previous);
+    expect(await store.read('canvas'), 'fixture');
   });
   test('部分成功保留上一次完全成功时间', () async {
     await store.save(

@@ -10,12 +10,21 @@ class PlatformRequestException implements Exception {
     this.message, [
     this.statusCode,
     this.retryable = false,
-  ]);
+    bool? requiresReauth,
+  ]) : requiresReauth =
+           requiresReauth ?? (statusCode == 401 || statusCode == 403);
   final String message;
   final int? statusCode;
   final bool retryable;
+  final bool requiresReauth;
   @override
   String toString() => message;
+}
+
+class PlatformNetworkException extends PlatformRequestException {
+  const PlatformNetworkException(this.kind)
+    : super('网络不稳定，请稍后再试', 503, true, false);
+  final String kind;
 }
 
 class HaokeCredentials {
@@ -68,6 +77,25 @@ DateTime? haokeDeadline(dynamic value) {
   return time.toUtc();
 }
 
+int haokeColumnCategory(Map column) {
+  if ('${column['columnType']}' != '30' && column['columnCode'] != 'examines') {
+    return 0;
+  }
+  final icon = '${column['iconPath'] ?? ''}'
+      .split(RegExp(r'[?#]'))
+      .first
+      .split('/')
+      .last;
+  return const {
+        'icon-1.svg': 1,
+        'icon-151.svg': 2,
+        'icon-2.svg': 4,
+        'icon-6.svg': 16,
+        'icon-5.svg': 8,
+      }[icon] ??
+      0;
+}
+
 TaskRecord normalizeHaokeTask(
   Map row,
   Map course,
@@ -78,7 +106,7 @@ TaskRecord normalizeHaokeTask(
   if (row['taskId'] == null ||
       row['taskName'] is! String ||
       (row['taskName'] as String).trim().isEmpty) {
-    throw const PlatformRequestException('好课作业缺少编号或标题');
+    throw const PlatformRequestException('好课任务缺少编号或标题');
   }
   final returned = '${row['continueType']}' == '20';
   final completed =
@@ -91,8 +119,8 @@ TaskRecord normalizeHaokeTask(
     '/student/course/${course['classId']}/task',
     {
       'instanceId': '${course['instanceId']}',
-      'columnId': '${column['columnId']}',
-      if (column['columnCode'] != null) 'taskType': '${column['columnCode']}',
+      if (column['columnId'] != null) 'columnId': '${column['columnId']}',
+      'taskType': '${column['columnCode'] ?? 'task'}',
       if (column['uniqueId'] != null) 'uniqueId': '${column['uniqueId']}',
     },
   );
@@ -105,6 +133,7 @@ TaskRecord normalizeHaokeTask(
     accountId: accountId,
     createdAt: syncedAt,
     syncedAt: syncedAt,
+    haokeCategories: (column['haokeCategories'] as int?) ?? 0,
     dueAt: haokeDeadline(row['endTime']),
     completed: completed,
     url: url.toString(),
@@ -189,9 +218,17 @@ class PlatformTaskClient {
       final response = await request.close().timeout(remaining());
       if (response.statusCode < 200 || response.statusCode >= 300) {
         final status = response.statusCode;
+        final canvas = uri.host == 'canvas.tongji.edu.cn';
+        final requiresReauth =
+            status == 401 &&
+            (response.headers.value('www-authenticate')?.isNotEmpty ?? false);
         throw PlatformRequestException(
           status == 401
-              ? '平台拒绝当前凭证（401），请重新连接；已有作业保留'
+              ? canvas && !requiresReauth
+                    ? 'Canvas 读取权限不足（401，未返回凭证认证失败标识），请核对课程权限；自动检查继续'
+                    : canvas
+                    ? 'Canvas 拒绝当前 Token（401），请核对到期或撤销情况并更新；学校允许时可将新个人令牌到期日期留空。已有作业保留'
+                    : '平台拒绝当前凭证（401），请重新连接；已有作业保留'
               : status == 403
               ? '平台拒绝访问（403），请核对权限；不能据此认定凭证到期'
               : status == 429
@@ -199,6 +236,7 @@ class PlatformTaskClient {
               : '平台读取失败（HTTP $status）',
           status,
           [500, 502, 503, 504].contains(status),
+          canvas ? requiresReauth : null,
         );
       }
       final bytes = <int>[];
@@ -217,8 +255,16 @@ class PlatformTaskClient {
       rethrow;
     } on FormatException {
       throw const PlatformRequestException('平台响应不是有效 JSON', 502);
+    } on TimeoutException {
+      throw const PlatformNetworkException('timeout');
+    } on HandshakeException {
+      throw const PlatformNetworkException('tls');
+    } on SocketException {
+      throw const PlatformNetworkException('connection');
+    } on HttpException {
+      throw const PlatformNetworkException('http_connection');
     } catch (_) {
-      throw const PlatformRequestException('平台网络连接失败或超时，请稍后刷新', 503, true);
+      throw const PlatformRequestException('暂时无法更新，请稍后再试', 503);
     } finally {
       await iterator?.cancel();
       request?.abort();
@@ -332,7 +378,8 @@ class PlatformTaskClient {
         tasks.addAll(courseTasks);
         successful++;
       } on PlatformRequestException catch (error) {
-        if ([401, 413, 429].contains(error.statusCode) ||
+        if (error.requiresReauth ||
+            [413, 429].contains(error.statusCode) ||
             !deadline.isAfter(DateTime.now()) ||
             _closed) {
           rethrow;
@@ -362,10 +409,10 @@ class PlatformTaskClient {
     final deadline = DateTime.now().add(const Duration(seconds: 110));
     const paths = [
       '/api/teach/instance/listMyClass',
-      '/api/learn/task/queryClassInfo',
-      '/api/learn/task/listTaskType',
       '/api/learn/task/listTask',
       '/api/auth/queryCurrentUserInfo',
+      '/api/learn/task/queryClassInfo',
+      '/api/learn/examine/examineList',
     ];
     Future<Map> postOnce(String path, Map<String, dynamic> body) async {
       if (!paths.contains(path)) {
@@ -442,94 +489,142 @@ class PlatformTaskClient {
             (course['instanceName'] as String).trim().isEmpty) {
           throw const PlatformRequestException('好课课程字段无效', 502);
         }
-        final info = await post(paths[1], {'classId': classId, 'version': 2});
-        if (info['columnList'] is! List) {
-          throw const PlatformRequestException('好课栏目格式发生变化', 502);
-        }
-        final columns = <String, Map>{};
-        void visit(List rows) {
-          for (final row in rows.whereType<Map>()) {
-            if (RegExp(
-              r'作业|小测|测验|练习|homework|assignment|quiz',
-              caseSensitive: false,
-            ).hasMatch('${row['columnName'] ?? ''}')) {
-              columns['${row['columnId']}'] = row;
-            }
-            if (row['subList'] is List) visit(row['subList']);
-          }
-        }
-
-        visit(info['columnList']);
-        if (columns.isEmpty) {
-          warnings.add('${_truncate(course['instanceName'], 100)}：没有匹配到作业栏目');
-          continue;
-        }
         final courseTasks = <String, TaskRecord>{};
-        for (final column in columns.values) {
-          final columnId = int.tryParse('${column['columnId']}');
-          if (columnId == null) {
-            throw const PlatformRequestException('好课栏目编号无效', 502);
-          }
-          final typeData = await post(paths[2], {
-            'classId': classId,
-            'columnId': columnId,
-          });
-          if (typeData['columnList'] is! List) {
-            throw const PlatformRequestException('好课任务类型格式发生变化', 502);
-          }
-          final types = <dynamic>{};
-          for (final type
-              in (typeData['columnList'] as List).whereType<Map>()) {
-            if ((type['learnShowType'] == 0 || type['learnShowType'] == 10) &&
-                type['typeList'] is List) {
-              types.addAll(type['typeList']);
-            }
-          }
-          var seen = 0;
+        Future<List<Map>> readList(
+          String path,
+          Map<String, dynamic> body,
+          String idKey,
+        ) async {
+          final rows = <Map>[];
           final fingerprints = <String>{};
           for (var pageNo = 1; pageNo <= 200; pageNo++) {
-            final data = await post(paths[3], {
-              'classId': classId,
-              'columnId': columnId,
-              'orderType': 0,
+            final data = await post(path, {
+              ...body,
               'page': {'pageNo': pageNo, 'pageSize': 50},
-              'searchText': '',
-              'status': 0,
-              'taskTypes': types.toList(),
-              'requireFlag': null,
-              'exemptFlag': null,
             });
             final total = int.tryParse('${data['totalRowCount']}');
             if (data['rowList'] is! List || total == null || total < 0) {
               throw const PlatformRequestException('好课分页格式发生变化', 502);
             }
-            final rows = data['rowList'] as List;
+            final page = data['rowList'] as List;
+            if (page.any((row) => row is! Map)) {
+              throw const PlatformRequestException('好课任务字段无效', 502);
+            }
             final fingerprint = jsonEncode(
-              rows.map((row) => row is Map ? row['taskId'] : null).toList(),
+              page.map((row) => row[idKey]).toList(),
             );
-            if (rows.isNotEmpty && !fingerprints.add(fingerprint)) {
+            if (page.isNotEmpty && !fingerprints.add(fingerprint)) {
               throw const PlatformRequestException('好课重复返回同一页', 502);
             }
-            for (final row in rows) {
-              if (row is! Map) {
-                throw const PlatformRequestException('好课作业字段无效', 502);
-              }
-              final task = normalizeHaokeTask(
-                row,
-                course,
-                column,
-                accountId,
-                syncedAt,
-              );
-              courseTasks[task.id] = task;
-            }
-            seen += rows.length;
-            if (seen >= total) break;
-            if (rows.isEmpty || pageNo == 200) {
+            rows.addAll(page.cast<Map>());
+            if (rows.length >= total) return rows;
+            if (page.isEmpty) {
               throw const PlatformRequestException('未读取全部好课分页', 502);
             }
           }
+          throw const PlatformRequestException('未读取全部好课分页', 502);
         }
+
+        final body = <String, dynamic>{
+          'classId': classId,
+          'orderType': 0,
+          'searchText': '',
+          'status': 0,
+          'taskTypes': <dynamic>[],
+          'requireFlag': null,
+          'exemptFlag': null,
+        };
+        // Preserve all learning tasks; classify by official column membership.
+        for (final row in await readList(paths[1], body, 'taskId')) {
+          final task = normalizeHaokeTask(
+            row,
+            course,
+            const {},
+            accountId,
+            syncedAt,
+          );
+          courseTasks[task.id] = task;
+        }
+        final info = await post('/api/learn/task/queryClassInfo', {
+          'classId': classId,
+        });
+        if (info['columnList'] is! List) {
+          throw const PlatformRequestException('好课课程栏目格式发生变化', 502);
+        }
+        Future<void> visit(List columns) async {
+          for (final column in columns.cast<Map>()) {
+            final category = haokeColumnCategory(column);
+            if (category != 0 &&
+                column['columnCode'] != 'examines' &&
+                column['columnId'] != null) {
+              for (final row in await readList(paths[1], {
+                ...body,
+                'columnId': column['columnId'],
+              }, 'taskId')) {
+                final task = normalizeHaokeTask(
+                  row,
+                  course,
+                  column,
+                  accountId,
+                  syncedAt,
+                );
+                courseTasks[task.id] = task.copyWith(
+                  haokeCategories:
+                      (courseTasks[task.id]?.haokeCategories ?? 0) | category,
+                );
+              }
+            } else if (category == 8 && column['columnCode'] == 'examines') {
+              final exams = await readList('/api/learn/examine/examineList', {
+                'teachClassId': classId,
+                'instanceId': course['instanceId'],
+                'searchText': '',
+                'examineStatus': 0,
+              }, 'examineId');
+              for (final parent in exams) {
+                for (final row in [
+                  parent,
+                  if (parent['makeupExam'] is Map &&
+                      parent['makeupExam']['examineId'] != null)
+                    parent['makeupExam'] as Map,
+                ]) {
+                  if (row['examineId'] == null ||
+                      row['examineName'] is! String) {
+                    throw const PlatformRequestException('好课考试缺少编号或标题', 502);
+                  }
+                  final completed = '${row['submitFlag']}' == '1';
+                  final url = Uri.https(
+                    'tongji.aihaoke.net',
+                    '/student/course/$classId/examines/home',
+                    {
+                      'instanceId': '${course['instanceId']}',
+                      'examineId': '${row['examineId']}',
+                    },
+                  );
+                  final task = TaskRecord(
+                    id: 'haoke:$accountId:$classId:exam:${row['examineId']}',
+                    title: _truncate(row['examineName'], 200),
+                    course: _truncate(course['instanceName'], 100),
+                    platform: 'haoke',
+                    source: 'haoke',
+                    accountId: accountId,
+                    createdAt: syncedAt,
+                    syncedAt: syncedAt,
+                    dueAt: haokeDeadline(row['endTime']),
+                    completed: completed,
+                    submissionState: completed ? 'submitted' : 'unsubmitted',
+                    haokeCategories: 8,
+                    url: url.toString(),
+                    note: '好课考试同步 · ${completed ? '已提交' : '待参加或待核对'}',
+                  );
+                  courseTasks[task.id] = task;
+                }
+              }
+            }
+            if (column['subList'] is List) await visit(column['subList']);
+          }
+        }
+
+        await visit(info['columnList']);
         tasks.addAll(courseTasks);
         successful++;
       } on PlatformRequestException catch (error) {
@@ -556,6 +651,33 @@ class PlatformTaskClient {
       successfulCourses: successful,
       syncedAt: syncedAt,
     );
+  }
+
+  Future<String> verifyHaokeAccount(String token) async {
+    if (token.isEmpty || token.length > 4096) {
+      throw const PlatformRequestException('好课登录信息未就绪');
+    }
+    final response = await _request(
+      Uri.https('tongji.aihaoke.net', '/api/auth/queryCurrentUserInfo'),
+      token,
+      DateTime.now().add(const Duration(seconds: 15)),
+      body: {},
+      limit: 65536,
+    );
+    final value = response.data;
+    if (value is! Map || value['code'] != 200) {
+      final code = value is Map ? int.tryParse('${value['code']}') : null;
+      throw PlatformRequestException('好课登录验证未完成，请稍后刷新或重新连接', code ?? 502);
+    }
+    final data = value['data'];
+    final user = data is Map ? data['userInfo'] : null;
+    final account = user is Map ? user['userId'] : null;
+    if ((account is! String && account is! int) ||
+        '$account'.trim().isEmpty ||
+        '$account'.length > 100) {
+      throw const PlatformRequestException('无法确认好课账号，请重新连接', 502);
+    }
+    return '$account';
   }
 
   Future<HaokeCredentials> readHaokeCredentials(String token) async {
@@ -603,6 +725,7 @@ class PlatformTaskClient {
       throw PlatformRequestException(
         '好课续期被拒绝，请稍后刷新或重新登录',
         [401, 403].contains(code) ? code : 503,
+        [429, 500, 502, 503, 504].contains(code),
       );
     }
     final data = value['data'];

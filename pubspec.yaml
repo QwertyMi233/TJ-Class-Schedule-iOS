@@ -1,12 +1,14 @@
 name: offline_course_schedule
 description: 完全离线的个人课程表（当前阶段：数据、导入与周次判定）
 publish_to: none
-version: 0.2.3+5
+version: 0.3.0+12
 
 environment:
   sdk: ">=3.10.0 <4.0.0"
 
 dependencies:
+  canvas_session_bridge:
+    path: packages/canvas_session_bridge
   flutter:
     sdk: flutter
   android_intent_plus: ^6.1.0
@@ -36,4 +38,5 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
+    - assets/LICENSE_HITable.txt
     - assets/task_collector.js

@@ -154,6 +154,8 @@ void main() {
     await tester.pumpAndSettle();
 
     await _pickTime(tester, '开始时刻', 9, 0);
+    await tester.tap(find.text('设置结束时刻'));
+    await tester.pumpAndSettle();
     await _pickTime(tester, '结束时刻', 8, 30);
     await tester.tap(find.text('保存备忘录'));
     await tester.pumpAndSettle();
@@ -172,6 +174,71 @@ void main() {
     expect(memo.date, fixture.today);
     expect(memo.startMinutes, 540);
     expect(memo.endMinutes, 630);
+  });
+
+  testWidgets('新增一次性备忘录默认只填开始时刻即可保存', (tester) async {
+    _useTallSurface(tester);
+    final fixture = _fixture();
+    await tester.pumpWidget(_app(fixture));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('添加课程'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('备忘录'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('一次性'));
+    await tester.pumpAndSettle();
+    expect(find.text('结束时刻'), findsNothing);
+    await tester.enterText(find.byType(TextField).at(0), '领取材料');
+    await tester.tap(find.text('保存备忘录'));
+    await tester.pumpAndSettle();
+    final memo = fixture.controller.addedMemos.single;
+    expect(memo.startMinutes, 540);
+    expect(memo.endMinutes, isNull);
+  });
+
+  testWidgets('无结束时刻的备忘录显示、详情、编辑保存都不会补出结束时间', (tester) async {
+    _useTallSurface(tester);
+    final fixture = _oneTimeFixture();
+    await tester.pumpWidget(_app(fixture));
+    await tester.pumpAndSettle();
+    expect(find.text('14:00'), findsOneWidget);
+    await tester.tap(find.text('时点事件'));
+    await tester.pumpAndSettle();
+    expect(find.text('时间：14:00'), findsOneWidget);
+    await tester.tap(find.text('关闭'));
+    await tester.pumpAndSettle();
+    await tester.longPress(find.text('时点事件'));
+    await tester.pumpAndSettle();
+    expect(find.text('结束时刻'), findsNothing);
+    await tester.tap(find.text('设置结束时刻'));
+    await tester.pumpAndSettle();
+    expect(find.text('15:00'), findsOneWidget);
+    await tester.tap(find.text('设置结束时刻'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('保存备忘录'));
+    await tester.pumpAndSettle();
+    expect(fixture.controller.updatedMemos.single.endMinutes, isNull);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('已有结束时刻可关闭并保存为空；24点结束也可打开选择器', (tester) async {
+    _useTallSurface(tester);
+    final fixture = _oneTimeFixture(endMinutes: 1440);
+    await tester.pumpWidget(_app(fixture));
+    await tester.pumpAndSettle();
+    await tester.longPress(find.text('时点事件'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('结束时刻'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.byType(TimePickerDialog), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('设置结束时刻'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('保存备忘录'));
+    await tester.pumpAndSettle();
+    expect(fixture.controller.updatedMemos.single.endMinutes, isNull);
   });
 
   testWidgets('备忘录支持按周重复时间类型', (tester) async {
@@ -307,6 +374,29 @@ _Fixture _fixture() {
     today: today,
     controller: _FakeScheduleController(
       ScheduleData(term: term, courses: [course], memos: [memo]),
+    ),
+  );
+}
+
+_Fixture _oneTimeFixture({int? endMinutes}) {
+  final fixture = _fixture();
+  return _Fixture(
+    today: fixture.today,
+    controller: _FakeScheduleController(
+      ScheduleData(
+        term: fixture.controller.data.term,
+        courses: const [],
+        memos: [
+          Memo(
+            id: 'one',
+            title: '时点事件',
+            colorValue: 1,
+            date: fixture.today,
+            startMinutes: 840,
+            endMinutes: endMinutes,
+          ),
+        ],
+      ),
     ),
   );
 }

@@ -128,13 +128,29 @@ class AppearanceSettingsPage extends ConsumerWidget {
                 _OpacitySlider(
                   key: const ValueKey('background-overlay-slider'),
                   title: '遮罩浓度',
-                  subtitle: '提高可让课程文字更清楚；降低可让背景图更明显',
+                  subtitle: '随深浅模式柔和提亮或压暗，提高后文字更清楚',
                   value: overlayOpacity,
                   min: 0,
                   max: 1,
                   enabled: backgroundPath != null,
                   onChanged: (value) => ref
                       .read(backgroundOverlayOpacityProvider.notifier)
+                      .saveSettings(value),
+                ),
+                const Divider(height: 1, indent: 56),
+                _OpacitySlider(
+                  key: const ValueKey('background-blur-slider'),
+                  title: '背景柔化',
+                  percentage: false,
+                  subtitle: '仅柔化图片，课表文字保持清晰；设为零保留原图',
+                  value:
+                      ref.watch(backgroundBlurProvider).valueOrNull ??
+                      BackgroundBlurController.defaultBlur,
+                  min: 0,
+                  max: BackgroundBlurController.maxBlur,
+                  enabled: backgroundPath != null,
+                  onChanged: (value) => ref
+                      .read(backgroundBlurProvider.notifier)
                       .saveSettings(value),
                 ),
                 const Divider(height: 1, indent: 56),
@@ -170,9 +186,7 @@ class AppearanceSettingsPage extends ConsumerWidget {
                         .saveSettings(null),
                   ),
                   title: const Text('使用默认（跟随系统浅色外观）'),
-                  subtitle: const Text(
-                    '只影响小组件的普通状态，临近上课时的提醒色不受影响',
-                  ),
+                  subtitle: const Text('只影响小组件的普通状态，临近上课时的提醒色不受影响'),
                   trailing: widgetColor == null
                       ? const Icon(Icons.done_rounded)
                       : null,
@@ -202,7 +216,8 @@ class AppearanceSettingsPage extends ConsumerWidget {
                   title: const Text('自定义小组件颜色'),
                   subtitle: const Text('用色相、饱和度、亮度滑杆自己调'),
                   trailing: const Icon(Icons.chevron_right_rounded),
-                  onTap: () => _pickCustomWidgetColor(context, ref, widgetColor),
+                  onTap: () =>
+                      _pickCustomWidgetColor(context, ref, widgetColor),
                 ),
                 const Divider(height: 1, indent: 16),
                 ListTile(
@@ -318,6 +333,9 @@ class AppearanceSettingsPage extends ConsumerWidget {
           cardOpacity:
               ref.read(cardOpacityProvider).valueOrNull ??
               CardOpacityController.defaultOpacity,
+          blur:
+              ref.read(backgroundBlurProvider).valueOrNull ??
+              BackgroundBlurController.defaultBlur,
         ),
       ),
     );
@@ -400,6 +418,7 @@ class _OpacitySlider extends StatelessWidget {
     required this.max,
     required this.onChanged,
     this.enabled = true,
+    this.percentage = true,
   });
 
   final String title;
@@ -409,10 +428,14 @@ class _OpacitySlider extends StatelessWidget {
   final double max;
   final ValueChanged<double> onChanged;
   final bool enabled;
+  final bool percentage;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final valueLabel = percentage
+        ? '${(value * 100).round()}%'
+        : '${value.round()}';
     final textColor = enabled
         ? null
         : theme.colorScheme.onSurface.withValues(alpha: 0.38);
@@ -430,7 +453,7 @@ class _OpacitySlider extends StatelessWidget {
                 ),
               ),
               Text(
-                '${(value * 100).round()}%',
+                valueLabel,
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: textColor ?? theme.colorScheme.primary,
                   fontWeight: FontWeight.w600,
@@ -449,7 +472,7 @@ class _OpacitySlider extends StatelessWidget {
             max: max,
             // 分成 20 档，拖动时手感稳、不会出现 0.4712 这种零碎值。
             divisions: 20,
-            label: '${(value * 100).round()}%',
+            label: valueLabel,
             onChanged: enabled ? onChanged : null,
           ),
         ],
@@ -583,20 +606,8 @@ class _HslColorDialogState extends State<_HslColorDialog> {
             ),
             const SizedBox(height: 16),
             _slider('色相', _hue, 0, 360, (value) => _hue = value),
-            _slider(
-              '饱和度',
-              _saturation,
-              0,
-              1,
-              (value) => _saturation = value,
-            ),
-            _slider(
-              '亮度',
-              _lightness,
-              0,
-              1,
-              (value) => _lightness = value,
-            ),
+            _slider('饱和度', _saturation, 0, 1, (value) => _saturation = value),
+            _slider('亮度', _lightness, 0, 1, (value) => _lightness = value),
           ],
         ),
       ),

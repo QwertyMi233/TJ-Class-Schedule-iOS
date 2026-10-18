@@ -3,7 +3,10 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/task_repository.dart';
+import '../domain/task_record.dart';
 import 'schedule_controller.dart';
+
+final taskCacheProvider = StateProvider<List<TaskRecord>?>((ref) => null);
 
 final taskRevisionProvider = StateProvider<int>((ref) => 0);
 final taskRepositoryProvider = FutureProvider<TaskRepository>((ref) async {

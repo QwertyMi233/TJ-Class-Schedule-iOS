@@ -36,8 +36,15 @@ final nationalHolidayServiceProvider = Provider(
 );
 
 final databaseProvider = FutureProvider<ScheduleDatabase>((ref) async {
-  final database = await ScheduleDatabase.open();
-  ref.onDispose(() => unawaited(database.close()));
+  ScheduleDatabase? database;
+  var disposed = false;
+  ref.onDispose(() {
+    disposed = true;
+    final opened = database;
+    if (opened != null) unawaited(opened.close());
+  });
+  database = await ScheduleDatabase.open();
+  if (disposed) await database.close();
   return database;
 });
 
@@ -49,7 +56,7 @@ final scheduleControllerProvider =
 class ScheduleController extends AsyncNotifier<ScheduleData> {
   static const _importSnapshotKey = 'last_import_snapshot';
   static const _backupCodec = ScheduleBackupCodec();
-  late final ScheduleDatabase _database;
+  late ScheduleDatabase _database;
 
   @override
   Future<ScheduleData> build() async {
@@ -75,8 +82,8 @@ class ScheduleController extends AsyncNotifier<ScheduleData> {
 
   Future<void> saveTerm(Term term) async {
     final current = state.valueOrNull ?? const ScheduleData();
-    state = const AsyncLoading();
-    state = await AsyncValue.guard(() async {
+    final previous = state;
+    state = (await AsyncValue.guard(() async {
       await _database.replaceTermSchedule(term, current.courses);
       return ScheduleData(
         term: term,
@@ -85,15 +92,15 @@ class ScheduleController extends AsyncNotifier<ScheduleData> {
         adjustments: current.adjustments,
         cancellations: current.cancellations,
       );
-    });
+    })).copyWithPrevious(previous);
   }
 
   Future<void> replaceCourses(List<Course> courses) async {
     final current = state.requireValue;
     final term = current.term;
     if (term == null) return;
-    state = const AsyncLoading();
-    state = await AsyncValue.guard(() async {
+    final previous = state;
+    state = (await AsyncValue.guard(() async {
       await _database.replaceTermSchedule(term, courses);
       return ScheduleData(
         term: term,
@@ -102,15 +109,15 @@ class ScheduleController extends AsyncNotifier<ScheduleData> {
         adjustments: current.adjustments,
         cancellations: current.cancellations,
       );
-    });
+    })).copyWithPrevious(previous);
   }
 
   Future<void> replaceMemos(List<Memo> memos) async {
     final current = state.requireValue;
     final term = current.term;
     if (term == null) return;
-    state = const AsyncLoading();
-    state = await AsyncValue.guard(() async {
+    final previous = state;
+    state = (await AsyncValue.guard(() async {
       await _database.replaceTermMemos(term.id, memos);
       return ScheduleData(
         term: term,
@@ -119,7 +126,7 @@ class ScheduleController extends AsyncNotifier<ScheduleData> {
         adjustments: current.adjustments,
         cancellations: current.cancellations,
       );
-    });
+    })).copyWithPrevious(previous);
   }
 
   Future<void> importCourses(
@@ -183,8 +190,8 @@ class ScheduleController extends AsyncNotifier<ScheduleData> {
   }
 
   Future<void> restoreBackup(ScheduleBackup backup) async {
-    state = const AsyncLoading();
-    state = await AsyncValue.guard(() async {
+    final previous = state;
+    state = (await AsyncValue.guard(() async {
       await _database.replaceTermSchedule(backup.term, backup.courses);
       await _database.replaceTermMemos(backup.term.id, backup.memos);
       await _database.replaceScheduleAdjustments(backup.adjustments);
@@ -198,7 +205,7 @@ class ScheduleController extends AsyncNotifier<ScheduleData> {
         adjustments: adjustments,
         cancellations: List.unmodifiable(backup.cancellations),
       );
-    });
+    })).copyWithPrevious(previous);
   }
 
   Future<void> addCourse(Course course) async {
@@ -379,7 +386,7 @@ final notificationSettingsProvider =
 
 class NotificationSettingsController
     extends AsyncNotifier<NotificationSettings> {
-  late final ScheduleDatabase _database;
+  late ScheduleDatabase _database;
 
   @override
   Future<NotificationSettings> build() async {
@@ -407,7 +414,7 @@ final swipeAdvancesWeekProvider =
 
 class SwipeAdvancesWeekController extends AsyncNotifier<bool> {
   static const _settingKey = 'swipe_advances_week';
-  late final ScheduleDatabase _database;
+  late ScheduleDatabase _database;
 
   @override
   Future<bool> build() async {
@@ -438,7 +445,7 @@ final themeSeedColorProvider =
 class ThemeSeedColorController extends AsyncNotifier<int> {
   static const _settingKey = 'theme_seed_color';
   static const defaultColorValue = 0xFF607D8B;
-  late final ScheduleDatabase _database;
+  late ScheduleDatabase _database;
 
   @override
   Future<int> build() async {
@@ -476,9 +483,14 @@ abstract class BackgroundImageSource {
 }
 
 class LocalBackgroundImageSource implements BackgroundImageSource {
-  const LocalBackgroundImageSource();
+  const LocalBackgroundImageSource({
+    this.supportDirectory = getApplicationSupportDirectory,
+  });
 
-  /// 固定文件名，重新选择时直接覆盖，不留旧图。
+  final Future<Directory> Function() supportDirectory;
+  static int _serial = 0;
+
+  /// 每次使用新文件名，避免 FileImage 缓存继续显示旧图片。
   static const _fileName = 'background_image';
 
   @override
@@ -493,10 +505,24 @@ class LocalBackgroundImageSource implements BackgroundImageSource {
 
   @override
   Future<String> store(Uint8List bytes) async {
-    final directory = await getApplicationSupportDirectory();
-    final target = File(p.join(directory.path, _fileName));
-    await target.writeAsBytes(bytes, flush: true);
-    return target.path;
+    final directory = await supportDirectory();
+    final target = File(
+      p.join(
+        directory.path,
+        '${_fileName}_${DateTime.now().microsecondsSinceEpoch}_${_serial++}.png',
+      ),
+    );
+    final pending = File('${target.path}.tmp');
+    try {
+      await pending.writeAsBytes(bytes, flush: true);
+      await pending.rename(target.path);
+      return target.path;
+    } catch (_) {
+      try {
+        if (await pending.exists()) await pending.delete();
+      } catch (_) {}
+      rethrow;
+    }
   }
 
   @override
@@ -519,7 +545,7 @@ final backgroundImagePathProvider =
 
 class BackgroundImagePathController extends AsyncNotifier<String?> {
   static const _settingKey = 'background_image_path';
-  late final ScheduleDatabase _database;
+  late ScheduleDatabase _database;
 
   @override
   Future<String?> build() async {
@@ -529,8 +555,24 @@ class BackgroundImagePathController extends AsyncNotifier<String?> {
 
   /// 用户选好并裁剪完的字节，落盘后保存路径。
   Future<void> saveBackgroundImage(Uint8List bytes) async {
-    final path = await ref.read(backgroundImageSourceProvider).store(bytes);
-    await _persist(path);
+    final previous = state.valueOrNull;
+    final source = ref.read(backgroundImageSourceProvider);
+    final path = await source.store(bytes);
+    try {
+      await _persist(path);
+    } catch (_) {
+      if (path != previous) {
+        try {
+          await source.remove(path);
+        } catch (_) {}
+      }
+      rethrow;
+    }
+    if (previous != null && previous != path) {
+      try {
+        await source.remove(previous);
+      } catch (_) {}
+    }
   }
 
   Future<void> clearBackgroundImage() async {
@@ -562,14 +604,13 @@ class BackgroundImagePathController extends AsyncNotifier<String?> {
 
 /// 桌面小组件自己的背景色（ARGB int），与主界面主题色互不影响。
 /// null 表示未自定义，小组件沿用原来的浅色背景。
-final widgetColorProvider =
-    AsyncNotifierProvider<WidgetColorController, int?>(
-      WidgetColorController.new,
-    );
+final widgetColorProvider = AsyncNotifierProvider<WidgetColorController, int?>(
+  WidgetColorController.new,
+);
 
 class WidgetColorController extends AsyncNotifier<int?> {
   static const _settingKey = 'widget_color';
-  late final ScheduleDatabase _database;
+  late ScheduleDatabase _database;
 
   @override
   Future<int?> build() async {
@@ -595,17 +636,50 @@ class WidgetColorController extends AsyncNotifier<int?> {
   }
 }
 
-/// 主界面背景图的遮罩浓度（0.0 完全透明 ~ 1.0 全黑）。
+/// 主界面背景图的遮罩浓度，颜色跟随深浅主题。
 /// 默认 0.55：既能让背景图看得见，又能保证卡片文字清晰。
 final backgroundOverlayOpacityProvider =
     AsyncNotifierProvider<BackgroundOverlayOpacityController, double>(
       BackgroundOverlayOpacityController.new,
     );
 
+final backgroundBlurProvider =
+    AsyncNotifierProvider<BackgroundBlurController, double>(
+      BackgroundBlurController.new,
+    );
+
+class BackgroundBlurController extends AsyncNotifier<double> {
+  static const defaultBlur = 6.0;
+  static const maxBlur = 20.0;
+  late ScheduleDatabase _database;
+  @override
+  Future<double> build() async {
+    _database = await ref.watch(databaseProvider.future);
+    final saved = double.tryParse(
+      await _database.loadSetting('background_blur') ?? '',
+    );
+    return saved != null && saved.isFinite
+        ? saved.clamp(0.0, maxBlur)
+        : defaultBlur;
+  }
+
+  Future<void> saveSettings(double blur) async {
+    final value = blur.isFinite ? blur.clamp(0.0, maxBlur) : defaultBlur;
+    final previous = state;
+    state = AsyncData(value);
+    try {
+      await _database.saveSetting('background_blur', '$value');
+    } catch (error, stack) {
+      state = previous;
+      Error.throwWithStackTrace(error, stack);
+    }
+  }
+}
+
 class BackgroundOverlayOpacityController extends AsyncNotifier<double> {
   static const _settingKey = 'background_overlay_opacity';
   static const defaultOpacity = 0.55;
-  late final ScheduleDatabase _database;
+  late ScheduleDatabase _database;
 
   @override
   Future<double> build() async {
@@ -640,7 +714,7 @@ class CardOpacityController extends AsyncNotifier<double> {
 
   /// 再低文字就压不住背景，读不清了。
   static const minOpacity = 0.3;
-  late final ScheduleDatabase _database;
+  late ScheduleDatabase _database;
 
   @override
   Future<double> build() async {
@@ -667,8 +741,10 @@ class CardOpacityController extends AsyncNotifier<double> {
 enum WidgetRefreshMode {
   /// 省电：临近上课（2 小时内）每分钟刷，更远时 5 分钟刷一次。
   powerSaving('省电'),
+
   /// 正常：始终每分钟刷新。
   normal('正常'),
+
   /// 精确：每秒刷新，倒计时精确到秒，耗电明显更高。
   precise('精确');
 
@@ -693,7 +769,7 @@ final widgetRefreshModeProvider =
 class WidgetRefreshModeController extends AsyncNotifier<WidgetRefreshMode> {
   static const _settingKey = 'widget_refresh_mode';
   static const defaultMode = WidgetRefreshMode.powerSaving;
-  late final ScheduleDatabase _database;
+  late ScheduleDatabase _database;
 
   @override
   Future<WidgetRefreshMode> build() async {

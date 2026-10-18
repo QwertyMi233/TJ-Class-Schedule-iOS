@@ -23,6 +23,7 @@ class TaskRecord {
     this.note = '',
     this.syncedAt,
     this.submissionState,
+    this.haokeCategories = 0,
   }) : title = title.trim(),
        course = course.trim(),
        url = safeTaskUrl(url) {
@@ -71,8 +72,24 @@ class TaskRecord {
   final String note;
   final DateTime? syncedAt;
   final String? submissionState;
+  final int haokeCategories;
+  static const haokeCategoryLabels = {
+    1: '作业/小测',
+    2: '知识点资源',
+    4: '课堂练习',
+    16: '思维导图',
+    8: '考试',
+  };
+  bool matchesHaokeCategories(int selected) =>
+      platform != 'haoke' ||
+      selected == 31 ||
+      (haokeCategories & selected) != 0;
 
-  TaskRecord copyWith({bool? completed, bool? manualCompleted}) => TaskRecord(
+  TaskRecord copyWith({
+    bool? completed,
+    bool? manualCompleted,
+    int? haokeCategories,
+  }) => TaskRecord(
     id: id,
     title: title,
     course: course,
@@ -87,6 +104,7 @@ class TaskRecord {
     note: note,
     syncedAt: syncedAt,
     submissionState: submissionState,
+    haokeCategories: haokeCategories ?? this.haokeCategories,
   );
 
   Map<String, Object?> toRow() => {
@@ -106,6 +124,7 @@ class TaskRecord {
     'note': note,
     'synced_at': syncedAt?.toUtc().toIso8601String(),
     'submission_state': submissionState,
+    'haoke_categories': haokeCategories,
   };
 
   factory TaskRecord.fromRow(Map<String, Object?> row) => TaskRecord(
@@ -129,6 +148,7 @@ class TaskRecord {
         ? null
         : DateTime.parse(row['synced_at'] as String),
     submissionState: row['submission_state'] as String?,
+    haokeCategories: (row['haoke_categories'] as int?) ?? 0,
   );
 }
 
