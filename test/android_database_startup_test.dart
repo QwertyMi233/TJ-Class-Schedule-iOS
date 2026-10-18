@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -9,6 +10,7 @@ import 'package:offline_course_schedule/data/schedule_database.dart';
 import 'package:offline_course_schedule/domain/schedule_models.dart';
 import 'package:offline_course_schedule/main.dart';
 import 'package:offline_course_schedule/presentation/home_page.dart';
+import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart' as plugin;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
@@ -30,16 +32,23 @@ void main() {
       ),
     );
     var finished = false;
+    // 用当前系统的绝对路径；Windows 盘符在 Linux 上会被当成相对路径。
+    final databasePath = p.join(
+      Directory.systemTemp.path,
+      'startup-test',
+      'schedule.db',
+    );
+    expect(p.isAbsolute(databasePath), isTrue);
     final opening =
         Future.wait([
           ScheduleDatabase.open(
             factory: plugin.databaseFactorySqflitePlugin,
-            path: 'C:/startup-test/schedule.db',
+            path: databasePath,
             singleInstance: false,
           ),
           ScheduleDatabase.open(
             factory: plugin.databaseFactorySqflitePlugin,
-            path: 'C:/startup-test/schedule.db',
+            path: databasePath,
             singleInstance: false,
           ),
         ]).then((databases) {
