@@ -16,3 +16,7 @@ npm run build
 输出在 `dist/`。页面布局、组件和短文案约束见 [SITE_SPEC.md](SITE_SPEC.md)；托管步骤见 [DEPLOY.md](DEPLOY.md)。共享下载次数需要 Cloudflare Pages Function 与 D1，配置见 [COUNTING.md](COUNTING.md)；本地 Vite 预览会显示「暂不可用」。
 
 旧版 HTML 保存在 `legacy/index-previous.html`；`TJ-Class-Schedule-standalone.html` 是旧版的独立预览文件，不属于当前 React 版。
+
+0.3.0 首页和轮播新增定位寻物展示，图片由实际 App 页面渲染，使用示例定位点。官网源码同时保存在应用仓库的 `website/` 目录。
+
+Git 仓库不保存下载用的二进制 ZIP。重新部署前，请从 [v0.3.0 Release](https://github.com/qp338113/TJ-Class-Schedule/releases/tag/v0.3.0) 下载 `TJ-Class-Schedule-v0.3.0-arm64-v8a.zip`，放入 `public/downloads/`；再复制一份命名为 `TJ-Class-Schedule-arm64-v8a.zip`，供旧下载入口使用。APK 的 SHA256 为 `efde51e7e7c7675c25a869680cdf52141dc7ae2d1a64ffa2b815e7b894395768`。

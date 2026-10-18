@@ -22,7 +22,7 @@ npm run dev
 npm run build
 ```
 
-`dist/` 已包含页面、优化后的图标、六张真实截图、群二维码和 release APK 压缩包。下载按钮会提供 ZIP，访客解压后安装其中的 APK。共享下载次数由根目录 `functions/` 中的接口与 Cloudflare D1 保存；部署步骤见 [COUNTING.md](COUNTING.md)。
+`dist/` 已包含页面、优化后的图标、原有六张截图、新增的寻物界面示例、群二维码和 release APK 压缩包。下载按钮会提供 ZIP，访客解压后安装其中的 APK。下载 ZIP 不提交到 Git，新克隆源码需先按 README 下载当前 Release 包放入 `public/downloads/`。共享下载次数由根目录 `functions/` 中的接口与 Cloudflare D1 保存；部署步骤见 [COUNTING.md](COUNTING.md)。
 
 ## 静态托管
 
