@@ -42,7 +42,6 @@ PlatformTaskBatch batch({
   accountId: account,
   tasks: const [],
   warnings: warnings,
-  courseCount: 2,
   successfulCourses: warnings.isEmpty ? 2 : 1,
   syncedAt: DateTime.utc(2026, 10, 1),
 );

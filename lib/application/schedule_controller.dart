@@ -435,8 +435,7 @@ class SwipeAdvancesWeekController extends AsyncNotifier<bool> {
   }
 }
 
-/// 主界面主题色（种子色，ARGB int）。缺省值与改造前的写死种子色一致，
-/// 保证用户未设置时外观不变。
+/// 主界面主题种子色，保存为 ARGB 整数。
 final themeSeedColorProvider =
     AsyncNotifierProvider<ThemeSeedColorController, int>(
       ThemeSeedColorController.new,
@@ -467,10 +466,7 @@ class ThemeSeedColorController extends AsyncNotifier<int> {
   }
 }
 
-/// 背景图的选取与文件落盘。真实实现用 FilePicker 选图、path_provider 定位
-/// 应用私有目录，抽成接口是为了让设置读写逻辑能在单元测试里跑通。
-///
-/// 拆成「取字节」和「存字节」两步，是为了让调用方能在两者之间插入裁剪预览页。
+/// 背景图选取与存储接口。两步之间由调用方完成裁剪预览，测试时可替换文件操作。
 abstract class BackgroundImageSource {
   /// 让用户选一张图片并读出字节；用户取消选择时返回 null。
   Future<Uint8List?> pickBytes();
@@ -636,8 +632,7 @@ class WidgetColorController extends AsyncNotifier<int?> {
   }
 }
 
-/// 主界面背景图的遮罩浓度，颜色跟随深浅主题。
-/// 默认 0.55：既能让背景图看得见，又能保证卡片文字清晰。
+/// 背景遮罩浓度，默认 0.55，颜色跟随深浅主题。
 final backgroundOverlayOpacityProvider =
     AsyncNotifierProvider<BackgroundOverlayOpacityController, double>(
       BackgroundOverlayOpacityController.new,
@@ -701,8 +696,7 @@ class BackgroundOverlayOpacityController extends AsyncNotifier<double> {
   }
 }
 
-/// 课程/备忘录卡片的底色不透明度（1.0 完全不透明）。
-/// 有背景图时调低一点能透出背景，同时保持文字可读。
+/// 课程和备忘录卡片的底色不透明度，1.0 表示完全不透明。
 final cardOpacityProvider =
     AsyncNotifierProvider<CardOpacityController, double>(
       CardOpacityController.new,

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -82,7 +83,7 @@ class _CourseScheduleAppState extends ConsumerState<CourseScheduleApp> {
       if (!mounted) return;
       await initialize(database);
     } catch (error) {
-      debugPrint('后台同步初始化失败：$error');
+      if (kDebugMode) debugPrint('后台同步初始化失败：$error');
     }
   }
 
@@ -97,16 +98,12 @@ class _CourseScheduleAppState extends ConsumerState<CourseScheduleApp> {
         _notificationsReady = true;
       });
     } catch (error) {
-      debugPrint('通知初始化失败：$error');
+      if (kDebugMode) debugPrint('通知初始化失败：$error');
     }
     if (mounted) await _applyStartupDate();
   }
 
-  /// 启动后判定一次：今天的课都上完了就把选中日期直接挪到第二天。
-  ///
-  /// 由启动流程调用一次而不是放在 build 里：build 每次重建都会跑，用户手动滑到别的
-  /// 日期后会被抢回来。这里只执行一次，之后完全交给用户操作。也不监听 App 回到
-  /// 前台，避免重新进 App 时又跳一次。学期未配置或数据加载失败时静默跳过。
+  /// 仅启动时选取日期，避免重建或回到前台时覆盖用户手动选择的日期。
   Future<void> _applyStartupDate() async {
     // 用户点通知冷启动时带着明确的日期意图，此时不要覆盖成「第二天」。
     if (_initialDate != null) return;

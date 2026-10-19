@@ -1,9 +1,6 @@
 import 'schedule_models.dart';
 
-/// 唯一的日期课表查询入口。
-///
-/// 引擎只持有不可变快照，因此相同输入总会得到相同输出。界面层只调用本方法，
-/// 不自行计算教学周或单双周。
+/// 根据课表快照查询日期安排，统一处理教学周、调休和停课。
 class ScheduleEngine {
   ScheduleEngine({
     required this.term,
@@ -73,11 +70,8 @@ class ScheduleEngine {
     return List<ScheduledCourse>.unmodifiable(result);
   }
 
-  /// 某一天的全部安排：课程与备忘录的合并结果，按开始时间升序。
-  ///
-  /// 课程部分直接复用 [getCoursesForDate]，保证两者永不漂移；备忘录遵守同一套
-  /// 周次、调休与节假日规则，但不受临时停课影响。开始时间相同时课程排在备忘录
-  /// 之前，再按标题排序以保持稳定。
+  /// 合并当天课程和备忘录，按开始时间排序；同一时刻先课程、后备忘录，再按标题排序。
+  /// 备忘录沿用周次、调休和节假日规则，不受课程临时停课影响。
   List<ScheduleEntry> getEntriesForDate(DateTime date) {
     final adjustment = adjustmentForDate(date);
     if (adjustment?.isHoliday == true) return const [];

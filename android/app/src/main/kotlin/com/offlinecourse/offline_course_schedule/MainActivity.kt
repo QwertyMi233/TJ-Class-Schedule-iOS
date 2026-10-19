@@ -44,9 +44,7 @@ class MainActivity : LocationActivity() {
                 return@setMethodCallHandler
             }
             val courses = call.argument<List<Map<String, Any?>>>("courses") ?: emptyList()
-            // 小组件自己的背景色；为 null 表示恢复默认，直接删掉这个键。
-            // Dart 侧颜色是 32 位无符号 ARGB，超过 Int.MAX_VALUE 时会按 int64 传过来，
-            // 所以这里用 Number 取再转 Int，不能直接声明成 Int。
+            // ARGB 超出 Int 范围时会以 int64 传入，先按 Number 读取再转 Int；null 恢复默认色。
             val color = (call.argument<Any?>("color") as? Number)?.toInt()
             // 刷新频率由 Flutter 侧决定；为 null 时交给原生侧按默认（省电）处理。
             val refreshMode = call.argument<String>("refreshMode")

@@ -173,11 +173,8 @@ class _TongjiTimetablePageState extends State<TongjiTimetablePage> {
     }
   }
 
-  /// 逐格触发「排课信息」浮层并读取文字，解析成导入记录。
-  ///
-  /// 网页靠光标移入显示该浮层（不是点击），因此这里派发鼠标事件，
-  /// 等一小段时间让浮层渲染完再读。任何一格读不到都不影响其它格；
-  /// 整体一条都解析不出来时返回空列表，由调用方回退到读课程卡片。
+  /// 逐格派发鼠标移入事件，等待排课浮层显示后读取。
+  /// 未读到的格子由课程卡片补充，全部失败时返回空列表。
   Future<List<TongjiTimetableRecord>> _readPopupRows(Object? targets) async {
     if (targets is! List) return const [];
     final records = <TongjiTimetableRecord>[];
@@ -214,7 +211,9 @@ class _TongjiTimetablePageState extends State<TongjiTimetablePage> {
       // 只校验星期是不够的——同一天相邻两格会因此互相重复录入。
       if (parsed.isEmpty) continue;
       if (parsed.any((r) => r.weekday != weekday)) continue;
-      if (parsed.any((r) => r.startPeriod > targetEnd || targetStart > r.endPeriod)) {
+      if (parsed.any(
+        (r) => r.startPeriod > targetEnd || targetStart > r.endPeriod,
+      )) {
         continue;
       }
       records.addAll(parsed);
@@ -339,12 +338,7 @@ const _extractTimetableScript = r'''
     }
     return false;
   };
-  // 取文字层所属的「格子」——向上最近的有色卡片盒。
-  //
-  // 节次必须由格子决定，而不是由文字层自身的高度决定。同一格叠放多门课时，
-  // 文字层只占格内一小段：用它自己的高度去数节次，会得出「5-5」「6-6」这类
-  // 互不重叠的错误区间，中间那段更会因为没有压住任何一行节次中心而被整条丢掉。
-  // 格内所有课程都属于该格覆盖的节次（弹窗也按格给出节次，两者一致）。
+  // 节次取外层有色格子的范围。同格多课的文字层高度不同，不能用来推算节次。
   const cardCellOf = (element) => {
     let node = element;
     for (let depth = 0; depth < 4 && node; depth++) {
@@ -354,8 +348,7 @@ const _extractTimetableScript = r'''
     return null;
   };
   const weekFieldPattern = /\[[^\]]+\]/g;
-  // 教师「姓名(工号)」。姓名限 2-4 个字：中文姓名不会更长，而放宽到 8 字会让
-  // 正则把上一门课的地点一并吞进来（`土木学院机房张博珊(19633)`）。
+  // 姓名匹配限制为 2-4 个字，避免把上一条的地点并入教师名。
   const teacherIdPattern = /[\u4e00-\u9fa5]{2,4}\(\d{2,8}\)/g;
   // 元素文本里是否含合法的 [周次]。一格叠放多条排课时，它们可能同属一个元素，
   // 因此这里允许出现多个 [周次]，由下面的 splitCourseText 逐条切开。
@@ -363,22 +356,8 @@ const _extractTimetableScript = r'''
     const weekFields = value.match(weekFieldPattern) || [];
     return weekFields.some((field) => isWeekField(field.slice(1, -1)));
   };
-  // 把一个元素里的多门课切成多条文本。
-  //
-  // 同一格叠放多门课时，每门课各自的文字层未必是独立元素：整格的文字可能
-  // 全在一个元素里（innerText 由此得到多行）。此时文本里有多个 [周次]，
-  // 若整格拒绝就会**一条都读不到**（真实反馈：周四 5-6 节 Auto CAD 制图
-  // 三段周次、三位老师，常整格识别不到）。
-  //
-  // 切分边界取「下一条的教师(工号)」的起点：两个 [周次] 之间的内容形如
-  // `…上一条地点  教师名(工号) 课程名(课程代码)`，其中最后出现的
-  // `名(工号)` 属于下一条。找不到可靠的边界时返回 null（宁可不读这一格，
-  // 也不把两条课的内容混成一条），该格仍可由「排课信息」浮层路径补回。
-  //
-  // 关键校验：下一条的教师名**必须与前一条的地点用空白隔开**。
-  // 若整格文本完全没有分隔（`土木学院机房张博珊(19633)`），上面那条规则会把
-  // 上一条的地点一并当成教师名（得到「土木学院机房张博珊」），
-  // 那是**错误数据**，比不识别更糟，因此一律拒绝。
+  // 一个元素可能含多门课，在相邻 [周次] 之间找下一条教师(工号)作为切分点。
+  // 教师名与前一条地点必须有空白分隔；无法确认边界时返回 null，交给排课浮层补充。
   const splitCourseText = (value) => {
     const weeks = [];
     weekFieldPattern.lastIndex = 0;
@@ -457,10 +436,7 @@ const _extractTimetableScript = r'''
   const seen = new Set();
   for (const candidate of candidates) {
     const element = candidate.element;
-    // 星期与节次都以「格子」为准，而不是文字层自身。
-    // 同一格叠放多门课时，文字层只占格内一小段：用它的高度去数节次会得到
-    // 互不重叠的错误区间，中间那段更会因没压住任何节次中心而被整条丢弃。
-    // 格内所有课程都属于该格覆盖的节次。
+    // 同格课程共用星期和节次，使用外层格子的边界。
     const cell = cardCellOf(element);
     const rect = cell ? cell.getBoundingClientRect() : candidate.rect;
     const centerX = rect.left + rect.width / 2;
@@ -529,11 +505,7 @@ const _extractTimetableScript = r'''
 })()
 ''';
 
-// 把光标移到指定坐标，触发该格子的“排课信息”浮层。
-//
-// 网页显示排课信息靠的是鼠标移入（mouseenter/mouseover），不是点击，
-// 所以这里派发鼠标移动事件而不是 click。三种事件都发一遍，
-// 是因为不同前端框架监听的事件名不同。
+// 用鼠标移入触发排课浮层，兼容页面监听的不同鼠标事件。
 const _hoverTimetableTargetScript = r'''
 ((x, y) => {
   const element = document.elementFromPoint(x, y);

@@ -47,7 +47,6 @@ class SessionClient extends PlatformTaskClient {
       accountId: 'a',
       tasks: const [],
       warnings: const [],
-      courseCount: 1,
       successfulCourses: 1,
       syncedAt: DateTime.now(),
     );

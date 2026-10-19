@@ -7,4 +7,5 @@ analyzer:
     - build/**
     - outputs/**
     - work/**
+    - tmp/**
     - android/**

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -75,7 +76,7 @@ class _WidgetLifecycleState extends ConsumerState<WidgetLifecycle>
         updateAppearance: color.hasValue && refresh.hasValue,
       );
     } catch (error) {
-      debugPrint('课表小组件更新失败：$error');
+      if (kDebugMode) debugPrint('课表小组件更新失败：$error');
     }
   }
 
@@ -91,7 +92,7 @@ class _WidgetLifecycleState extends ConsumerState<WidgetLifecycle>
       final tasks = await repository.loadVisible();
       if (mounted) await const TaskWidgetService().sync(tasks);
     } catch (error) {
-      debugPrint('作业小组件更新失败：$error');
+      if (kDebugMode) debugPrint('作业小组件更新失败：$error');
     } finally {
       _syncingTasks = false;
       if (_tasksChanged && mounted) {

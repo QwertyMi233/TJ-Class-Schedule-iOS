@@ -12,7 +12,7 @@ import 'task_import_page.dart';
 import 'task_guide_page.dart';
 import 'canvas_session_page.dart';
 
-/// 日常界面只显示一条行动提示；接口细节保留在本机诊断中。
+/// 合并作业读取和登录维护的错误，只显示一条提示。
 String? haokeConnectionNotice(Map<String, String?> values) {
   if (values['task_haoke_needs_auth'] == 'true' ||
       values['task_haoke_login_blocked'] == 'true') {
@@ -88,7 +88,6 @@ class _TaskConnectionsPageState extends ConsumerState<TaskConnectionsPage>
       'task_auto_sync',
       'task_canvas_session_error',
       'task_haoke_session_error',
-      'task_haoke_login_success',
       'task_haoke_login_blocked',
       'task_haoke_error_at',
       'task_haoke_session_error_at',

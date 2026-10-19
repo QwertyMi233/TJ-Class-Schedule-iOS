@@ -4,13 +4,13 @@ import 'package:offline_course_schedule/data/national_holiday_service.dart';
 void main() {
   test('从国务院通知中只提取调休上班日期', () {
     const service = NationalHolidayService();
-    final dates = service.parseNotice(
+    final calendar = service.parseCalendar(
       '春节放假。2月14日（周六）、2月28日（周六）上班。'
       '国庆放假。9月20日（週日）、10月10日（週六）上班。',
       2026,
     );
 
-    expect(dates, [
+    expect(calendar.makeupDays, [
       DateTime(2026, 2, 14),
       DateTime(2026, 2, 28),
       DateTime(2026, 9, 20),

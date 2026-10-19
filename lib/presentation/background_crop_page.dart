@@ -5,10 +5,8 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'schedule_background.dart';
 
-/// 背景图裁剪页：在一个与屏幕同比例的取景框里拖动/缩放图片，框内所见即最终效果。
-///
-/// 顶部可切换遮罩预览——主界面会叠加随深浅主题变化的半透明遮罩，
-/// 打开遮罩时看到的就是实际观感。确认后返回裁剪好的 PNG 字节（取消返回 null）。
+/// 在屏幕比例的取景框内裁剪背景，可预览主题遮罩和卡片透明度。
+/// 确认后返回 PNG 字节，取消返回 null。
 class BackgroundCropPage extends StatefulWidget {
   const BackgroundCropPage({
     required this.imageBytes,
@@ -272,8 +270,7 @@ class _CropFrame extends StatelessWidget {
   }
 }
 
-/// 取景框内的课表示意：让用户直接看到「背景图 + 遮罩 + 课程卡片」叠起来之后
-/// 文字是否清楚，不用来回切到主界面反复试。
+/// 叠加课表示意，预览背景、遮罩和卡片下的文字可读性。
 class _TimetablePreview extends StatelessWidget {
   const _TimetablePreview({required this.cardOpacity});
 

@@ -38,14 +38,12 @@ class PlatformTaskBatch {
     required this.accountId,
     required this.tasks,
     required this.warnings,
-    required this.courseCount,
     required this.successfulCourses,
     required this.syncedAt,
   });
   final String accountId;
   final List<TaskRecord> tasks;
   final List<String> warnings;
-  final int courseCount;
   final int successfulCourses;
   final DateTime syncedAt;
 }
@@ -396,7 +394,6 @@ class PlatformTaskClient {
       accountId: accountId,
       tasks: tasks.values.toList(),
       warnings: warnings,
-      courseCount: courses.length,
       successfulCourses: successful,
       syncedAt: syncedAt,
     );
@@ -647,7 +644,6 @@ class PlatformTaskClient {
       accountId: accountId,
       tasks: tasks.values.toList(),
       warnings: warnings,
-      courseCount: courses.length,
       successfulCourses: successful,
       syncedAt: syncedAt,
     );

@@ -97,7 +97,6 @@ void main() {
         ),
       ],
       warnings: [],
-      courseCount: 1,
       successfulCourses: 1,
       syncedAt: synced,
     );

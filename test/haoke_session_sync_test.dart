@@ -35,7 +35,6 @@ class LoginClient extends PlatformTaskClient {
       accountId: 'a',
       tasks: const [],
       warnings: const [],
-      courseCount: 0,
       successfulCourses: 0,
       syncedAt: DateTime.now(),
     );
@@ -109,7 +108,7 @@ void main() {
     expect(client.reads, 4);
     expect(await service.hasPendingHaokeRetry(), true);
   });
-  test('重启后补试恢复，清除错误和补试状态，保留本机诊断', () async {
+  test('重启后补试恢复，清除错误和补试状态', () async {
     client.readFailure = const PlatformRequestException('超时', 503, true);
     await service.refresh();
     expect(await db.loadSetting('task_haoke_error_at'), isNotNull);
@@ -127,7 +126,7 @@ void main() {
     expect(await reopened.hasPendingHaokeRetry(), false);
     expect(await db.loadSetting('task_haoke_error'), '');
     expect(await db.loadSetting('task_haoke_error_at'), isNull);
-    expect(await db.loadSetting('task_haoke_read_diagnostic'), isNotNull);
+    expect(await db.loadSetting('task_haoke_read_diagnostic'), isNull);
   });
   test('登录验证断网后优先恢复候选，不重复生成新票据', () async {
     client.checkFailure = const PlatformRequestException('连接中断', 503, true);
@@ -175,8 +174,13 @@ void main() {
     client.readFailure = const PlatformRequestException('拒绝访问', 403);
     await service.refresh();
     expect(await service.hasPendingHaokeRetry(), false);
+    await db.saveSetting('task_haoke_login_diagnostic', 'legacy diagnostic');
+    await db.saveSetting('task_haoke_read_diagnostic', 'legacy diagnostic');
+    await db.saveSetting('task_haoke_login_success', now.toIso8601String());
     await service.disconnect('haoke');
     expect(await db.loadSetting('task_haoke_login_diagnostic'), isNull);
+    expect(await db.loadSetting('task_haoke_read_diagnostic'), isNull);
+    expect(await db.loadSetting('task_haoke_login_success'), isNull);
   });
   test('手动刷新可立即恢复，不等待后台补试时间', () async {
     client.readFailure = const PlatformRequestException('超时', 503, true);

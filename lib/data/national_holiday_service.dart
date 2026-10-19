@@ -20,10 +20,6 @@ class NationalHolidayService {
         'https://big5.www.gov.cn/gate/big5/www.gov.cn/zhengce/zhengceku/202511/content_7047091.htm',
   };
 
-  Future<List<DateTime>> fetchMakeupDays(int year) async {
-    return (await fetchCalendar(year)).makeupDays;
-  }
-
   Future<NationalHolidayCalendar> fetchCalendar(int year) async {
     final url = _noticeUrls[year];
     if (url == null) {
@@ -50,10 +46,6 @@ class NationalHolidayService {
     } finally {
       client.close(force: true);
     }
-  }
-
-  List<DateTime> parseNotice(String html, int year) {
-    return parseCalendar(html, year).makeupDays;
   }
 
   NationalHolidayCalendar parseCalendar(String html, int year) {

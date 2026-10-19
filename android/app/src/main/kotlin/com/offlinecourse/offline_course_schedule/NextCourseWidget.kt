@@ -28,8 +28,7 @@ class NextCourseWidget : AppWidgetProvider() {
 
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
-        // 除了自己排的刷新闹钟，系统级事件也要重算并重排：
-        // 重启、应用更新、用户改时间/时区/日期都会让原来的闹钟失效或文案过期。
+        // 重启、更新应用或修改系统时间后，重新计算文案和刷新闹钟。
         when (intent.action) {
             ACTION_REFRESH,
             Intent.ACTION_BOOT_COMPLETED,
@@ -44,8 +43,7 @@ class NextCourseWidget : AppWidgetProvider() {
         const val PREFS_NAME = "next_course_widget"
         const val COURSES_KEY = "courses"
 
-        // 小组件自己的背景色（ARGB int）。SharedPreferences 没有 putInt 的 null 语义，
-        // 所以“未自定义”用“键不存在”表示，而不是哨兵值。
+        // 背景色存为 ARGB；删除键表示恢复默认色。
         const val COLOR_KEY = "widget_color"
 
         // 倒计时刷新频率：省电 / 正常 / 精确（见 Dart 侧 WidgetRefreshMode）。
@@ -57,8 +55,7 @@ class NextCourseWidget : AppWidgetProvider() {
         private const val ACTION_REFRESH =
             "com.offlinecourse.offline_course_schedule.REFRESH_WIDGET"
 
-        // 底色亮度低于该值时改用浅色文字。Color.luminance 就是 WCAG 相对亮度，
-        // 阈值取自深浅两套文字各自等对比度交点（约 0.22 ~ 0.34）里偏保守的位置。
+        // 按 WCAG 相对亮度切换文字色，阈值取两套配色等对比度交点（约 0.22 ~ 0.34）的低端。
         private const val DARK_BACKGROUND_LUMINANCE = 0.22f
 
         // 浅色底上的文字色，与 layout XML 里写死的值一致。
@@ -94,8 +91,7 @@ class NextCourseWidget : AppWidgetProvider() {
             val customColor = readCustomColor(context)
             val views = RemoteViews(context.packageName, R.layout.next_course_widget)
             if (item == null) {
-                // 没有后续课程时用的就是普通档，同样套自定义色，
-                // 否则一没课就变回默认色，观感会割裂。
+                // 无后续课程时仍使用普通档的自定义背景色。
                 applyWidgetColors(views, R.drawable.widget_background, customColor)
                 // 桌面会复用同一个 View，标签要显式写回，否则会残留上一次的“下一项安排”。
                 views.setTextViewText(R.id.widget_label, "下一节课")
@@ -130,10 +126,7 @@ class NextCourseWidget : AppWidgetProvider() {
                     .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                     .getString(REFRESH_MODE_KEY, null) == MODE_PRECISE
                 if (precise && remaining > 0L) {
-                    // 精确模式用 Chronometer 显示到秒。
-                    // 不能靠“每秒排一次闹钟”来实现：AlarmManager 的精确闹钟受系统限流
-                    // （约每分钟才会派发一次，低电耗模式下更久），秒数会停在旧值反而误导。
-                    // Chronometer 由桌面进程自行每秒走动，不依赖应用被唤醒。
+                    // 秒数由桌面进程的 Chronometer 更新；AlarmManager 受限流，无法逐秒唤醒应用。
                     views.setViewVisibility(R.id.widget_countdown, View.GONE)
                     views.setViewVisibility(R.id.widget_countdown_precise, View.VISIBLE)
                     views.setChronometer(
@@ -144,8 +137,7 @@ class NextCourseWidget : AppWidgetProvider() {
                     )
                     views.setChronometerCountDown(R.id.widget_countdown_precise, true)
                 } else {
-                    // 省电/正常模式按分钟显示：刷新间隔就是分钟级，显示秒数会停在旧值。
-                    // 到点（remaining <= 0）也走这里，兜底显示“即将开始”而绝不出现负值。
+                    // 省电和正常模式只显示分钟；到点后显示“即将开始”。
                     views.setViewVisibility(R.id.widget_countdown, View.VISIBLE)
                     views.setViewVisibility(R.id.widget_countdown_precise, View.GONE)
                     val minutes = (remaining + 59_999L) / 60_000L // 向上取整，避免过早显示 0 分钟
@@ -209,16 +201,8 @@ class NextCourseWidget : AppWidgetProvider() {
             return prefs.getInt(COLOR_KEY, 0)
         }
 
-        /// 应用背景与文字颜色。
-        ///
-        /// [background] 是当前这一档（普通 / 紧迫）原本就该用的 drawable。
-        /// 自定义色只替换普通档：`widget_background_soon`（≤120min）与
-        /// `widget_background_urgent`（≤30min）保持原样，紧迫度提示不丢。
-        ///
-        /// 普通档不能直接 setBackgroundColor——那会丢掉圆角。改为“纯白底 drawable +
-        /// backgroundTintList”，结果色精确等于自定义色且保留 22dp 圆角。
-        /// 注意 `RemoteViews.setColorStateList` 是 API 31 才有的：低版本退回默认外观，
-        /// 不为任意取色牺牲圆角。
+        /// 自定义色只替换普通档；120 分钟和 30 分钟内仍使用原有提醒背景。
+        /// 使用白底 drawable 的 tint 保留 22dp 圆角。setColorStateList 需要 API 31，低版本用默认外观。
         private fun applyWidgetColors(
             views: RemoteViews,
             background: Int,
@@ -245,8 +229,7 @@ class NextCourseWidget : AppWidgetProvider() {
                 applyTextColors(views, light = isDarkBackground(tintColor))
             } else {
                 views.setInt(R.id.widget_root, "setBackgroundResource", background)
-                // View.setBackgroundResource 会重新套用之前存下的 backgroundTint，
-                // 不显式清掉的话，换回默认/紧迫档时旧颜色会残留上去。
+                // 切回默认或提醒背景时清除旧 tint，setBackgroundResource 不会自动清除它。
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                     views.setColorStateList(
                         R.id.widget_root,
@@ -327,18 +310,12 @@ class NextCourseWidget : AppWidgetProvider() {
             val mode = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 .getString(REFRESH_MODE_KEY, null)
             val triggerAt = if (item == null) {
-                // 当前没有后续安排（例如当天课已上完）。也要在次日零点重算一次，
-                // 否则小组件会一直停在“暂无后续课程”，直到用户自己打开 App。
+                // 无后续安排时也在次日零点刷新，避免一直停在“暂无后续课程”。
                 nextDayStart(now)
             } else {
                 val start = item.getLong("startMillis")
                 val remaining = start - now
-                // 倒计时文案带分钟（精确模式带秒），必须按对应频率重算，
-                // 否则数字会长时间停在旧值——这正是“只有点了才刷新”的原因。
-                // 注意：精确模式的秒数由 Chronometer 在桌面进程里自行走动，
-                // 不靠闹钟。AlarmManager 的精确闹钟受系统限流（约每分钟才会派发一次，
-                // 低电耗模式下更久），排每秒既拿不到回调又白耗电。
-                // 因此这里只需按分钟重算，用于切换背景档位与「到点切下一节」。
+                // 闹钟按分钟更新文案、提醒背景和下一项安排；精确模式的秒数交给 Chronometer。
                 val step = when (mode) {
                     // 精确：秒数交给 Chronometer，闹钟仍按分钟。
                     MODE_PRECISE -> 60_000L

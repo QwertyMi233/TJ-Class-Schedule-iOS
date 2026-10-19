@@ -148,17 +148,6 @@ class TaskSyncService {
     }
     await database.saveSetting(key, message);
     await database.saveSetting('${key}_at', time.toIso8601String());
-    // 只记录受控错误分类和接口状态，不记录 URL、请求体、密码或票据。
-    await database.saveSetting(
-      'task_haoke_${kind}_diagnostic',
-      jsonEncode({
-        'time': time.toIso8601String(),
-        'kind': error is PlatformNetworkException ? error.kind : 'response',
-        'status': error.statusCode,
-        'message': error.message,
-        'background': backgroundTick,
-      }),
-    );
   }
 
   Future<bool> _takeLease() async {
@@ -319,10 +308,6 @@ class TaskSyncService {
       await database.deleteSetting('task_haoke_retry_read');
       await database.saveSetting(
         'task_haoke_login_attempt',
-        DateTime.now().toIso8601String(),
-      );
-      await database.saveSetting(
-        'task_haoke_login_success',
         DateTime.now().toIso8601String(),
       );
       await _saveBatch('haoke', batch);
@@ -628,10 +613,6 @@ class TaskSyncService {
     await database.deleteSetting('task_haoke_session_error');
     await database.deleteSetting('task_haoke_session_error_at');
     await database.deleteSetting('task_haoke_retry_login');
-    await database.saveSetting(
-      'task_haoke_login_success',
-      DateTime.now().toIso8601String(),
-    );
     return next;
   }
 

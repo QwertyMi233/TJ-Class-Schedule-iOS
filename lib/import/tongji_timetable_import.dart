@@ -81,9 +81,7 @@ class TongjiTimetableImportParser {
     final teacherGroups = RegExp(
       r'([^\s,，、()]+)\(\d+\)',
     ).allMatches(teacherText).toList();
-    var teachers = teacherGroups
-        .map((match) => match.group(1)!)
-        .join('、');
+    var teachers = teacherGroups.map((match) => match.group(1)!).join('、');
     String courseName;
     if (teacherPrefix != null) {
       courseName = courseAndTeachers.substring(teacherPrefix.end).trim();
@@ -250,14 +248,8 @@ List<TongjiTimetableRecord> _parsePopupChunk(_PopupChunk chunk, int weekday) {
   return records;
 }
 
-/// 按逗号把一条正文切成若干段。
-///
-/// 只在下一次出现「教师名 + 空格 + 课程名」时才切，例如
-/// `…四平路校区, 钱杨 学术英语写作III([…]彰武北大楼 409) …`
-/// ——它们是**同一节课按周次拆成的两段**，各有各的周次与地点。
-///
-/// 而 `邱军(06122),刘宁(21019)` 这种教师并列不能切：后面的名字紧跟着
-/// 工号括号而不是空格，说明它还是同一条。方括号与圆括号内部的逗号也不切。
+/// 只在逗号后出现“教师名 + 空格 + 课程名”时分段。
+/// 并列教师、圆括号和方括号内的逗号不分段，以免拆散同一条排课。
 List<String> _splitPopupSegments(String body) {
   final segments = <String>[];
   var depth = 0;
@@ -292,7 +284,7 @@ TongjiTimetableRecord? _parsePopupSegment(
   _PopupChunk chunk,
   String? leadingWeeks,
 ) {
-  // —— 本科格式：课程名(课程代码) 教师(工号) 地点 ——
+  // 本科格式：课程名(课程代码) 教师(工号) 地点。
   final codeMatch = RegExp(
     r'\(([A-Za-z]{2,}[A-Za-z0-9_-]*)\)',
   ).firstMatch(segment);
@@ -317,12 +309,8 @@ TongjiTimetableRecord? _parsePopupSegment(
     }
   }
 
-  // —— 研究生格式：教师名 课程名(… ) 地点 ——
-  //
-  // 这种课表既没有课程代码也没有教师工号，例如
-  // `钱杨 学术英语写作III( ) 四平路校区`；
-  // 周次可能写在行首，也可能写在圆括号里（`学术英语写作III([1-3, 5, 7]彰武北大楼 409)`）。
-  // 必须要求存在圆括号组：否则像「某门课 某老师 某地」这种说明文字会被误判成课程。
+  // 研究生格式没有课程代码和工号；周次可能在行首或课程名后的圆括号内。
+  // 要求圆括号组存在，避免把普通说明文字误认成课程。
   final nameMatch = RegExp(
     r'^([\u4e00-\u9fa5]{2,4})\s+(\S.*)$',
   ).firstMatch(segment);
@@ -384,17 +372,8 @@ int _popupWeekdayNumber(String label) {
   return 0;
 }
 
-/// 把弹窗结果与课程卡片结果按格合并。
-///
-/// 弹窗信息更完整（一格多课会逐条列出），但它需要光标移入才显示，
-/// 可能只成功了一部分。如果直接采用弹窗结果，未成功的格子会整格丢失——
-/// 那比读卡片更糟。因此按「格」替换：
-///
-/// - 弹窗成功的格子（同一星期且节次范围有交集）→ 只用弹窗结果
-/// - 弹窗没读到的格子 → 保留课程卡片结果，行为与从前一致
-///
-/// 这样最坏情况等于现在的行为，不会有任何格子因为弹窗失败而丢失。
-/// 最后再按「星期 + 节次 + 原文」去重，重复录入的内容只保留一条。
+/// 同星期且节次重叠的格子优先用弹窗结果，其余保留课程卡片结果。
+/// 合并后按星期、起止节次和原文去重，避免弹窗局部失败时漏课。
 List<TongjiTimetableRecord> mergePopupWithCards({
   required List<TongjiTimetableRecord> popup,
   required List<TongjiTimetableRecord> cards,
@@ -414,21 +393,14 @@ List<TongjiTimetableRecord> mergePopupWithCards({
   return dedupeRecords(merged);
 }
 
-/// 去掉完全相同的记录。
-///
-/// 判重键为「星期 + 起止节次 + 原文」，保留首次出现的那条。
-/// 同一门课在不同周次、不同教师下是不同记录（原文不同），因此不会被误删；
-/// 只有真正重复的内容才会被合并成一条。
-///
-/// 之所以需要它：浮层是异步渲染的，光标移入后若浮层没来得及更新，
-/// 相邻两格可能读到同一份内容，从而把同一门课写入两次。
-List<TongjiTimetableRecord> dedupeRecords(
-  List<TongjiTimetableRecord> records,
-) {
+/// 按星期、起止节次和原文去重，保留首次出现的记录。
+/// 异步浮层可能重复返回上一格内容；周次或教师不同的原文仍分别保留。
+List<TongjiTimetableRecord> dedupeRecords(List<TongjiTimetableRecord> records) {
   final seen = <String>{};
   final result = <TongjiTimetableRecord>[];
   for (final record in records) {
-    final key = '${record.weekday}|${record.startPeriod}|'
+    final key =
+        '${record.weekday}|${record.startPeriod}|'
         '${record.endPeriod}|${record.text}';
     if (!seen.add(key)) continue;
     result.add(record);

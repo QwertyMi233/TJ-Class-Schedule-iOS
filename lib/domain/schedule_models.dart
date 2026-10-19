@@ -1,9 +1,6 @@
 enum WeekType { every, odd, even, custom }
 
-/// 一组可判定的教学周规则。
-///
-/// 连续单双周使用 [startWeek]、[endWeek] 和 [type]；不连续周次额外保存在
-/// [explicitWeeks]，因此不会把“1,3,5-9周”错误扩展成每周。
+/// 教学周范围和单双周规则；不连续的周次由 [explicitWeeks] 指定。
 class WeekRule {
   WeekRule({
     required this.startWeek,
@@ -37,7 +34,7 @@ class WeekRule {
     };
   }
 
-  /// 展示用文本，例如 `1-16周`、`1-16周(单)`、`1,3,5-9周`。只看不改判定逻辑。
+  /// 周次显示文本，例如 `1-16周(单)`、`1,3,5-9周`。
   String get displayText {
     if (type != WeekType.custom) {
       final suffix = switch (type) {
@@ -233,11 +230,9 @@ class CourseSession {
   final String? teacherOverride;
 }
 
-/// 用户自建的备忘录，与课程无关，可以自己设置标题、地点和时间。
-///
-/// 一条备忘录只描述一个时间，因此两种时间类型有且只有一种生效：按周重复时使用
-/// [weekday]、[startPeriod]、[endPeriod] 和 [weekRule]；一次性时使用 [date]、
-/// [startMinutes]，并可选填 [endMinutes]。混用或都不填都会抛出 [ArgumentError]。
+/// 备忘录必须选择一种时间：按周重复或一次性。
+/// 重复项使用星期、节次和周次；一次性项使用日期与开始时刻，结束时刻可省略。
+/// 缺少时间或混用两种时间时抛出 [ArgumentError]。
 class Memo {
   Memo({
     required this.id,
@@ -340,10 +335,7 @@ class ScheduledCourse {
       : course.teacher;
 }
 
-/// 某一天里的一条安排：统一表达“课程”和“用户自建的备忘录”。
-///
-/// 界面、提醒和小组件只依赖 [startTime]、[endTime]、[title]、[location]、
-/// [teacher] 与 [isMemo]，因此不必为两种类型各写一套排序与筛选逻辑。
+/// 课程和备忘录共用的展示、排序及提醒接口。
 sealed class ScheduleEntry {
   const ScheduleEntry();
 
