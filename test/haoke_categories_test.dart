@@ -188,7 +188,7 @@ void main() {
     expect(rows['haoke:23:42:exam:2']!.completed, isFalse);
   });
   for (final version in [8, 9]) {
-    test('v$version升至v10保留任务及手动完成，旧小测选择合并为作业/小测', () async {
+    test('v$version升级后保留任务及手动完成，旧小测选择合并为作业/小测', () async {
       final folder = await Directory.systemTemp.createTemp(
         'tj-category-migration-',
       );
@@ -204,6 +204,13 @@ void main() {
             await db.execute(
               'CREATE TABLE national_makeup_days(date TEXT PRIMARY KEY,replacement_week INTEGER,replacement_weekday INTEGER,is_holiday INTEGER NOT NULL DEFAULT 0,holiday_name TEXT)',
             );
+            await db.execute('''CREATE TABLE memos (
+              id TEXT PRIMARY KEY, term_id TEXT NOT NULL, title TEXT NOT NULL,
+              location TEXT NOT NULL, color_value INTEGER NOT NULL,
+              weekday INTEGER, start_period INTEGER, end_period INTEGER,
+              start_week INTEGER, end_week INTEGER, week_type TEXT,
+              explicit_weeks TEXT, date TEXT, start_minutes INTEGER, end_minutes INTEGER
+            )''');
             await db.execute(
               'CREATE TABLE tasks(id TEXT PRIMARY KEY,title TEXT,course TEXT,platform TEXT,source TEXT,account_id TEXT,created_at TEXT,due_at TEXT,completed INTEGER,manual_completed INTEGER,url TEXT,note TEXT,synced_at TEXT,submission_state TEXT)',
             );

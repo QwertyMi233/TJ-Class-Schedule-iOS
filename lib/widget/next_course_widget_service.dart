@@ -1,4 +1,8 @@
+import 'dart:convert';
+
+import 'package:android_intent_plus/android_intent.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../application/schedule_controller.dart';
 import '../domain/schedule_engine.dart';
@@ -7,6 +11,20 @@ class NextCourseWidgetService {
   const NextCourseWidgetService();
 
   static const _channel = MethodChannel('offline_course_schedule/widget');
+
+  Future<void> syncBackground(ScheduleData schedule, {DateTime? now}) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      'schedule_widget_courses',
+      jsonEncode(buildItems(schedule, now ?? DateTime.now())),
+    );
+    await const AndroidIntent(
+      action: 'com.offlinecourse.offline_course_schedule.REFRESH_WIDGET',
+      package: 'com.offlinecourse.offline_course_schedule',
+      componentName:
+          'com.offlinecourse.offline_course_schedule.NextCourseWidget',
+    ).sendBroadcast();
+  }
 
   /// [colorValue] 是小部件自己的背景色（ARGB int）；
   /// 传 null 表示未自定义，原生侧会恢复原来的浅色背景。

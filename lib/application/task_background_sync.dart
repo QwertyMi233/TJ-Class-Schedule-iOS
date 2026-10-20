@@ -8,6 +8,8 @@ import '../notifications/task_sync_notifications.dart';
 import 'task_state.dart';
 import '../widget/task_widget_service.dart';
 import 'task_sync_controller.dart';
+import 'star_background_sync.dart';
+import '../data/star_activity_client.dart';
 
 @pragma('vm:entry-point')
 void taskSyncDispatcher() {
@@ -15,35 +17,70 @@ void taskSyncDispatcher() {
     WidgetsFlutterBinding.ensureInitialized();
     final db = await ScheduleDatabase.open(singleInstance: false);
     final notifications = NotificationService();
-    TaskSyncService? service;
-    var retryNeeded = false;
     try {
-      if (await db.loadSetting('task_auto_sync') != 'true') return true;
-      await notifications.initialize();
-      final notifier = TaskSyncNotifications(db, notifications);
-      service = TaskSyncService(
-        db,
-        backgroundTick: true,
-        onAutomaticUpdate: notifier.updated,
-        onAuthRequired: notifier.authRequired,
-      );
-      await service.refresh();
-      retryNeeded = await service.hasPendingHaokeRetry();
-      final raw = await db.loadSetting('task_reminders');
-      final settings = taskReminderSettingsFromJson(raw);
-      final tasks = await TaskRepository(db.database).loadVisible();
-      await const TaskWidgetService().syncBackground(tasks);
-      await notifications.rescheduleTasks(tasks: tasks, settings: settings);
-      return !retryNeeded;
+      if (task == 'sync-star-activities') {
+        try {
+          await syncStarInBackground(db, notifications);
+          return true;
+        } on StarRequestException catch (error) {
+          return error.needsAuth;
+        }
+      }
+      return await syncTasksInBackground(db, notifications);
     } catch (_) {
-      // 附属通知或小组件失败不能吞掉已经安排的网络补试。
-      return !retryNeeded;
+      return false;
     } finally {
-      service?.close();
       await notifications.dispose();
       await db.close();
     }
   });
+}
+
+Future<bool> syncTasksInBackground(
+  ScheduleDatabase db,
+  NotificationService notifications, {
+  TaskSyncService? syncService,
+  TaskWidgetService widgets = const TaskWidgetService(),
+}) async {
+  if (await db.loadSetting('task_auto_sync') != 'true') return true;
+  var notificationsReady = false;
+  try {
+    await notifications.initialize();
+    notificationsReady = true;
+  } catch (_) {
+    // 通知不可用时仍要同步作业。
+  }
+  final notifier = TaskSyncNotifications(db, notifications);
+  final service =
+      syncService ??
+      TaskSyncService(
+        db,
+        backgroundTick: true,
+        onAutomaticUpdate: notificationsReady ? notifier.updated : null,
+        onAuthRequired: notificationsReady ? notifier.authRequired : null,
+      );
+  try {
+    await service.refresh();
+    final retry =
+        service.deferredByAnotherSync || await service.hasPendingHaokeRetry();
+    final tasks = await TaskRepository(db.database).loadVisible();
+    try {
+      await widgets.syncBackground(tasks);
+    } catch (_) {}
+    if (notificationsReady) {
+      try {
+        await notifications.rescheduleTasks(
+          tasks: tasks,
+          settings: taskReminderSettingsFromJson(
+            await db.loadSetting('task_reminders'),
+          ),
+        );
+      } catch (_) {}
+    }
+    return !retry;
+  } finally {
+    if (syncService == null) service.close();
+  }
 }
 
 Future<void> configureTaskBackgroundSync(bool enabled) async {
@@ -68,5 +105,8 @@ Future<void> initializeTaskBackgroundSync(ScheduleDatabase db) async {
   await Workmanager().initialize(taskSyncDispatcher);
   await configureTaskBackgroundSync(
     await db.loadSetting('task_auto_sync') == 'true',
+  );
+  await configureStarBackgroundSync(
+    await db.loadSetting('star_enabled') == 'true',
   );
 }

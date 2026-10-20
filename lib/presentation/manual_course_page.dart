@@ -555,6 +555,7 @@ class _ManualCoursePageState extends ConsumerState<ManualCoursePage> {
     final oldMemo = widget.memo;
     final memo = Memo(
       id: oldMemo?.id ?? 'memo-${DateTime.now().microsecondsSinceEpoch}',
+      source: oldMemo?.source,
       title: title,
       location: _locationController.text.trim(),
       colorValue: _memoColorValue,

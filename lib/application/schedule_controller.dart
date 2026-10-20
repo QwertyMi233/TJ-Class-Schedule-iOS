@@ -118,11 +118,15 @@ class ScheduleController extends AsyncNotifier<ScheduleData> {
     if (term == null) return;
     final previous = state;
     state = (await AsyncValue.guard(() async {
-      await _database.replaceTermMemos(term.id, memos);
+      await _database.replaceTermMemos(
+        term.id,
+        memos,
+        previousMemos: current.memos,
+      );
       return ScheduleData(
         term: term,
         courses: current.courses,
-        memos: List<Memo>.unmodifiable(memos),
+        memos: await _database.loadMemos(term.id),
         adjustments: current.adjustments,
         cancellations: current.cancellations,
       );
@@ -287,6 +291,7 @@ class ScheduleController extends AsyncNotifier<ScheduleData> {
         title: memo.title,
         location: memo.location,
         colorValue: colorValue,
+        source: memo.source,
         weekday: memo.weekday,
         startPeriod: memo.startPeriod,
         endPeriod: memo.endPeriod,
@@ -297,6 +302,21 @@ class ScheduleController extends AsyncNotifier<ScheduleData> {
       );
     }).toList();
     await replaceMemos(changed);
+  }
+
+  Future<void> reloadMemos() async {
+    final memos = await _database.loadMemos(currentTermId);
+    final current = state.valueOrNull;
+    if (current == null) return;
+    state = AsyncData(
+      ScheduleData(
+        term: current.term,
+        courses: current.courses,
+        memos: memos,
+        adjustments: current.adjustments,
+        cancellations: current.cancellations,
+      ),
+    );
   }
 
   Future<int> checkNationalMakeupDays() async {

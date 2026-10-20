@@ -11,6 +11,8 @@ import 'platform_login_page.dart';
 import 'task_import_page.dart';
 import 'task_guide_page.dart';
 import 'canvas_session_page.dart';
+import 'haoke_password_page.dart';
+import 'magic_os_guide_page.dart';
 
 /// 合并作业读取和登录维护的错误，只显示一条提示。
 String? haokeConnectionNotice(Map<String, String?> values) {
@@ -89,6 +91,7 @@ class _TaskConnectionsPageState extends ConsumerState<TaskConnectionsPage>
       'task_canvas_session_error',
       'task_haoke_session_error',
       'task_haoke_login_blocked',
+      'task_haoke_password_login',
       'task_haoke_error_at',
       'task_haoke_session_error_at',
       for (final platform in ['canvas', 'haoke']) ...[
@@ -106,27 +109,48 @@ class _TaskConnectionsPageState extends ConsumerState<TaskConnectionsPage>
   Future<bool> _confirmAccountSwitch(
     String oldAccount,
     String newAccount,
-  ) async =>
-      await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('检测到不同账号'),
-          content: Text(
-            '当前账号：$oldAccount\n新账号：$newAccount\n切换后列表只显示新账号的同步作业；旧数据保留在本机。',
+  ) async {
+    if (!mounted) return false;
+    return await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('检测到不同账号'),
+            content: Text(
+              '当前账号：$oldAccount\n新账号：$newAccount\n切换后列表只显示新账号的同步作业；旧数据保留在本机。',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('取消'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('确认切换'),
+              ),
+            ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('确认切换'),
-            ),
-          ],
+        ) ??
+        false;
+  }
+
+  Future<void> _connectPassword() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (_) =>
+              HaokePasswordPage(confirmSwitch: _confirmAccountSwitch),
         ),
-      ) ??
-      false;
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _busy = false);
+        _load();
+      }
+    }
+  }
 
   Future<void> _connect(String platform) async {
     final result = await Navigator.push<PlatformLoginResult>(
@@ -269,6 +293,19 @@ class _TaskConnectionsPageState extends ConsumerState<TaskConnectionsPage>
               const Text('连接仅保存在本机，离线也能查看已同步作业。'),
               const SizedBox(height: 12),
               SwitchListTile(
+                secondary: IconButton(
+                  tooltip: '后台运行设置',
+                  onPressed: _busy
+                      ? null
+                      : () => Navigator.push<void>(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                const MagicOsGuidePage(showBackButton: true),
+                          ),
+                        ),
+                  icon: const Icon(Icons.battery_saver_outlined),
+                ),
                 title: const Text('自动检查作业（含后台）'),
                 subtitle: const Text('约每 30 分钟更新，省电模式下可能延后。'),
                 value: values['task_auto_sync'] == 'true',
@@ -295,6 +332,10 @@ class _TaskConnectionsPageState extends ConsumerState<TaskConnectionsPage>
                         Text(
                           values['task_${platform}_account'] == null
                               ? '尚未连接'
+                              : platform == 'haoke' &&
+                                    values['task_haoke_password_login'] ==
+                                        'true'
+                              ? '已连接 · 密码自动登录'
                               : '已连接 · 本机加密保存',
                         ),
                         if (values['task_${platform}_last_success'] != null)
@@ -344,35 +385,77 @@ class _TaskConnectionsPageState extends ConsumerState<TaskConnectionsPage>
                             FilledButton(
                               onPressed: _busy
                                   ? null
+                                  : platform == 'haoke'
+                                  ? _connectPassword
                                   : () => _connect(platform),
                               child: Text(
-                                values['task_${platform}_account'] == null
+                                platform == 'haoke'
+                                    ? '账号密码自动同步'
+                                    : values['task_${platform}_account'] == null
                                     ? '连接'
                                     : values['task_${platform}_needs_auth'] ==
                                           'true'
-                                    ? platform == 'haoke'
-                                          ? '重新登录'
-                                          : '重新加载 Token'
+                                    ? '重新加载 Token'
                                     : '更新连接',
                               ),
                             ),
-                            if (values['task_${platform}_account'] != null)
+                            if (platform == 'haoke')
+                              PopupMenuButton<String>(
+                                tooltip: '更多连接操作',
+                                enabled: !_busy,
+                                icon: const Icon(Icons.more_horiz),
+                                onSelected: (action) async {
+                                  if (action == 'web') await _connect('haoke');
+                                  if (action == 'disconnect') {
+                                    await _disconnect('haoke');
+                                  }
+                                  if (action == 'official' && context.mounted) {
+                                    await Navigator.push<void>(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => TaskBrowserPage(
+                                          url: url,
+                                          title: title,
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                },
+                                itemBuilder: (_) => [
+                                  const PopupMenuItem(
+                                    value: 'web',
+                                    child: Text('网页登录（备用）'),
+                                  ),
+                                  const PopupMenuItem(
+                                    value: 'official',
+                                    child: Text('打开官网'),
+                                  ),
+                                  if (values['task_haoke_account'] != null)
+                                    const PopupMenuItem(
+                                      value: 'disconnect',
+                                      child: Text('断开连接'),
+                                    ),
+                                ],
+                              ),
+                            if (platform != 'haoke' &&
+                                values['task_${platform}_account'] != null)
                               TextButton(
                                 onPressed: _busy
                                     ? null
                                     : () => _disconnect(platform),
                                 child: const Text('断开'),
                               ),
-                            TextButton(
-                              onPressed: () => Navigator.push<void>(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                      TaskBrowserPage(url: url, title: title),
+                            if (platform != 'haoke')
+                              TextButton(
+                                onPressed: () => Navigator.push<void>(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        TaskBrowserPage(url: url, title: title),
+                                  ),
                                 ),
+                                child: const Text('打开官方页面'),
                               ),
-                              child: const Text('打开官方页面'),
-                            ),
                           ],
                         ),
                       ],

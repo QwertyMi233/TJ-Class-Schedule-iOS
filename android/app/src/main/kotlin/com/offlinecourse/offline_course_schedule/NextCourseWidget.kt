@@ -208,14 +208,8 @@ class NextCourseWidget : AppWidgetProvider() {
             background: Int,
             customColor: Int?,
         ) {
-            val normalTier = background == R.drawable.widget_background
-            val tintColor =
-                if (normalTier && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    customColor
-                } else {
-                    null
-                }
-            if (tintColor != null) {
+            if (background == R.drawable.widget_background && customColor != null &&
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 views.setInt(
                     R.id.widget_root,
                     "setBackgroundResource",
@@ -224,9 +218,9 @@ class NextCourseWidget : AppWidgetProvider() {
                 views.setColorStateList(
                     R.id.widget_root,
                     "setBackgroundTintList",
-                    ColorStateList.valueOf(tintColor),
+                    ColorStateList.valueOf(customColor),
                 )
-                applyTextColors(views, light = isDarkBackground(tintColor))
+                applyTextColors(views, light = isDarkBackground(customColor))
             } else {
                 views.setInt(R.id.widget_root, "setBackgroundResource", background)
                 // 切回默认或提醒背景时清除旧 tint，setBackgroundResource 不会自动清除它。
@@ -279,8 +273,10 @@ class NextCourseWidget : AppWidgetProvider() {
         }
 
         private fun nextItem(context: Context): org.json.JSONObject? {
-            val raw = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                .getString(COURSES_KEY, "[]") ?: "[]"
+            val raw = context.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+                .getString("flutter.schedule_widget_courses", null)
+                ?: context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                    .getString(COURSES_KEY, "[]") ?: "[]"
             val courses = runCatching { JSONArray(raw) }.getOrElse { JSONArray() }
             val now = System.currentTimeMillis()
             for (index in 0 until courses.length()) {

@@ -15,6 +15,7 @@ import 'manual_course_page.dart';
 import 'notification_settings_page.dart';
 import 'term_setup_page.dart';
 import 'task_page.dart';
+import 'star_connection_page.dart';
 import 'tongji_timetable_page.dart';
 
 class HomePage extends ConsumerWidget {
@@ -309,6 +310,11 @@ class _ScheduleHome extends ConsumerWidget {
                         );
                       } else if (value == 'swipe_mode') {
                         _toggleSwipeMode(ref, swipeAdvancesWeek);
+                      } else if (value == 'star') {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute<void>(builder: (_) => const StarConnectionPage()),
+                        );
                       } else if (value == 'appearance') {
                         Navigator.push(
                           context,
@@ -319,6 +325,10 @@ class _ScheduleHome extends ConsumerWidget {
                       }
                     },
                     itemBuilder: (_) => [
+                      const PopupMenuItem(
+                        value: 'star',
+                        child: Text('卓越星活动同步'),
+                      ),
                       const PopupMenuItem(
                         value: 'tongji',
                         child: Text('从同济1系统导入'),

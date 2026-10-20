@@ -1,7 +1,7 @@
 name: offline_course_schedule
 description: 完全离线的个人课程表（当前阶段：数据、导入与周次判定）
 publish_to: none
-version: 0.3.0+12
+version: 0.3.1+13
 
 environment:
   sdk: ">=3.10.0 <4.0.0"
@@ -22,6 +22,7 @@ dependencies:
   google_mlkit_text_recognition: ^0.16.0
   path: ^1.9.0
   path_provider: ^2.1.6
+  pointycastle: ^4.0.0
   sqflite: ^2.3.3+1
   timezone: ^0.11.1
   webview_flutter: ^4.14.1
@@ -34,6 +35,7 @@ dev_dependencies:
   flutter_lints: ^5.0.0
   sqflite_common_ffi: 2.3.4+4
   sqlite3: 2.9.4
+  webview_flutter_platform_interface: ^2.15.1
 
 flutter:
   uses-material-design: true

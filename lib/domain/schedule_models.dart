@@ -246,6 +246,7 @@ class Memo {
     DateTime? date,
     this.startMinutes,
     this.endMinutes,
+    this.source,
   }) : date = date == null ? null : DateTime(date.year, date.month, date.day) {
     if (title.trim().isEmpty) {
       throw ArgumentError('备忘录标题不能为空');
@@ -299,6 +300,8 @@ class Memo {
   final String title;
   final String location;
   final int colorValue;
+
+  final String? source;
 
   /// 按周重复时使用，此时 [date]、[startMinutes]、[endMinutes] 必为 null。
   final int? weekday;

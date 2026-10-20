@@ -35,10 +35,15 @@ class PlatformCredentialStore {
   Future<void> save(String platform, String account, String credential) async {
     if (account.isEmpty || credential.isEmpty) throw ArgumentError('账号或凭证为空');
     // 先加密落盘，再切换账号指针；写入中断时仍可使用旧账号。
+    final previous = platform == 'haoke' ? await activeAccount(platform) : null;
     await storage.write(key: _key(platform, account), value: credential);
     await database.saveSetting('task_${platform}_account', account);
     await database.saveSetting('task_${platform}_needs_auth', 'false');
     await database.deleteSetting('task_${platform}_auth_notified');
+    if (previous != null && previous != account) {
+      await storage.delete(key: _key(platform, previous));
+      await clearHaokeCandidate(previous);
+    }
   }
 
   Future<void> remove(String platform) async {

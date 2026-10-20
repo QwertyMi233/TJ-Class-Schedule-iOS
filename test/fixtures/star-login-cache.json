@@ -1,0 +1,19 @@
+{
+  "origin": "https://star.tongji.edu.cn",
+  "valid": {
+    "value": {
+      "ACCESS_TOKEN__": {
+        "value": "fixture-access-token",
+        "time": 4102444800000
+      },
+      "REFRESH_TOKEN__": {
+        "value": "fixture-refresh-token",
+        "time": 4102444800000
+      }
+    },
+    "time": 1,
+    "expire": 4102444800000
+  },
+  "encrypted": "31KDpmVjM+DIRvU0k+rtDyOcKgYDcc2oUb9SDE2zd8EHaZp1UlZmJtlpcYN7IkkvvDZnGKghvp8zdJzth96ytHw+YEUJVe+6CoPizhLPK1K1YQdP7RSqDjJPQBrxK+ZclR+fPM6d7HlX11B/b5kyOuthZqoSTVJuVXzjluhBOnId9Fvark4LK69H+48mJkDcx8SXJliGwisUKdqTlITe+vNSdmANdzmCEqtaFMq/Kwn5leZRD4XsOPAz7A9FWYdw",
+  "expiredEncrypted": "31KDpmVjM+DIRvU0k+rtDyOcKgYDcc2oUb9SDE2zd8EHaZp1UlZmJtlpcYN7IkkvvDZnGKghvp8zdJzth96ytHw+YEUJVe+6CoPizhLPK1K1YQdP7RSqDjJPQBrxK+ZclR+fPM6d7HlX11B/b5kyOuthZqoSTVJuVXzjluhBOnId9Fvark4LK69H+48mJkDcx8SXJliGwisUKdqTlITe+vNSdmANdzmCEqtaFMq6Zzg="
+}

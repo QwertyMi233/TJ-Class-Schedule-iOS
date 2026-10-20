@@ -67,6 +67,8 @@ class MainActivity : LocationActivity() {
                 }
             }
             editor.apply()
+            getSharedPreferences("FlutterSharedPreferences", MODE_PRIVATE).edit()
+                .putString("flutter.schedule_widget_courses", JSONArray(courses).toString()).apply()
             NextCourseWidget.updateAll(this)
             result.success(null)
         }

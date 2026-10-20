@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/platform_credential_store.dart';
 import '../data/canvas_session_manager.dart';
+import '../data/haoke_password_login.dart';
 import '../data/platform_task_client.dart';
 import '../data/schedule_database.dart';
 import '../data/task_repository.dart';
@@ -39,6 +40,7 @@ class TaskSyncService {
     PlatformTaskClient? client,
     PlatformCredentialStore? credentials,
     CanvasSessionManager? canvasSession,
+    PasswordLoginClient? passwordLogin,
     this.backgroundTick = false,
     DateTime Function()? clock,
     this.onChanged,
@@ -48,6 +50,7 @@ class TaskSyncService {
        client = client ?? PlatformTaskClient(),
        credentials = credentials ?? PlatformCredentialStore(database),
        canvasSession = canvasSession ?? const CanvasSessionManager(),
+       passwordLogin = passwordLogin ?? PasswordLoginClient(),
        repository = TaskRepository(database.database);
 
   final void Function()? onChanged;
@@ -58,12 +61,14 @@ class TaskSyncService {
   final PlatformTaskClient client;
   final PlatformCredentialStore credentials;
   final CanvasSessionManager canvasSession;
+  final PasswordLoginClient passwordLogin;
   final bool backgroundTick;
   final DateTime Function() _clock;
   final TaskRepository repository;
   Future<Map<String, String>>? _running;
   bool _changing = false;
   String? _leaseOwner;
+  bool deferredByAnotherSync = false;
 
   // 登录维护与作业读取分别保留补试额度，进程重启后仍然有效。
   // 每轮正常检查最多补试两次；不会无限请求或反复轮换健康票据。
@@ -216,7 +221,10 @@ class TaskSyncService {
     });
   }
 
-  void close() => client.close();
+  void close() {
+    client.close();
+    passwordLogin.close();
+  }
 
   Future<bool> connectCanvas(
     String token, {
@@ -300,11 +308,9 @@ class TaskSyncService {
         return false;
       }
       await credentials.save('haoke', batch.accountId, _encodePair(pair));
+      await database.saveSetting('task_haoke_password_login', 'false');
       await credentials.clearHaokeCandidate(batch.accountId);
-      await database.deleteSetting('task_haoke_login_blocked');
-      await database.deleteSetting('task_haoke_session_error');
-      await database.deleteSetting('task_haoke_session_error_at');
-      await database.deleteSetting('task_haoke_retry_login');
+      await _resetHaokeLogin();
       await database.deleteSetting('task_haoke_retry_read');
       await database.saveSetting(
         'task_haoke_login_attempt',
@@ -315,6 +321,107 @@ class TaskSyncService {
     } finally {
       await _releaseLease();
       _changing = false;
+    }
+  }
+
+  Future<bool> connectHaokePassword(
+    HaokePasswordCredentials login, {
+    required Future<bool> Function(String oldAccount, String newAccount)
+    confirmSwitch,
+  }) async {
+    _checkIdle();
+    _changing = true;
+    try {
+      if (!await _takeLease()) throw StateError('后台同步正在进行，请稍后操作连接');
+      final session = await _passwordSession(login);
+      final old =
+          await credentials.activeAccount('haoke') ??
+          await database.loadSetting('task_haoke_last_account');
+      if (old != null &&
+          old != session.accountId &&
+          !await confirmSwitch(old, session.accountId)) {
+        return false;
+      }
+      await credentials.save(
+        'haoke',
+        session.accountId,
+        _encodePair(session.pair, password: login),
+      );
+      await credentials.clearHaokeCandidate(session.accountId);
+      await _resetHaokeLogin();
+      await database.deleteSetting('task_haoke_retry_read');
+      await database.saveSetting('task_haoke_password_login', 'true');
+      await database.saveSetting('task_auto_sync', 'true');
+      await database.saveSetting(
+        'task_haoke_login_attempt',
+        _clock().toIso8601String(),
+      );
+      await _beginHaokeAttempt('read', manual: true);
+      try {
+        final batch = await client.collectHaoke(session.pair.token);
+        if (batch.accountId != session.accountId) {
+          throw const PlatformRequestException(
+            '好课账号已变化，请重新连接',
+            403,
+            false,
+            true,
+          );
+        }
+        await _saveBatch('haoke', batch);
+      } on PlatformRequestException catch (error) {
+        await _recordHaokeFailure('read', error);
+        if (error.requiresReauth) {
+          await database.saveSetting('task_haoke_needs_auth', 'true');
+          await database.saveSetting('task_haoke_login_blocked', 'true');
+        }
+        throw PlatformRequestException(
+          error.requiresReauth
+              ? '连接已保存，但账号或权限无法验证，请重新登录好课'
+              : error.retryable
+              ? '连接已保存，暂时无法读取作业，稍后自动重试'
+              : '连接已保存，作业读取未完成，请稍后重试',
+          error.statusCode,
+          error.retryable,
+          error.requiresReauth,
+        );
+      }
+      return true;
+    } finally {
+      await _releaseLease();
+      _changing = false;
+      onChanged?.call();
+    }
+  }
+
+  Future<void> _resetHaokeLogin() async {
+    for (final suffix in [
+      'login_blocked',
+      'session_error',
+      'session_error_at',
+      'retry_login',
+    ]) {
+      await database.deleteSetting('task_haoke_$suffix');
+    }
+  }
+
+  Future<({String accountId, HaokeCredentials pair})> _passwordSession(
+    HaokePasswordCredentials login,
+  ) async {
+    try {
+      return await passwordLogin.login(
+        login.username,
+        login.password,
+        login.mode,
+      );
+    } on LoginFailure catch (error) {
+      throw PlatformRequestException(
+        error.retryable ? '好课登录暂时失败，稍后自动重试' : '好课登录未完成，请核对密码或在官方页面完成验证',
+        error.retryable
+            ? (error.code is int ? error.code as int : error.httpStatus)
+            : 403,
+        error.retryable,
+        !error.retryable,
+      );
     }
   }
 
@@ -337,6 +444,7 @@ class TaskSyncService {
           'error_at',
           'login_diagnostic',
           'read_diagnostic',
+          'password_login',
         ]) {
           await database.deleteSetting('task_haoke_$suffix');
         }
@@ -355,8 +463,12 @@ class TaskSyncService {
       });
 
   Future<Map<String, String>> _refresh({required bool manual}) async {
+    deferredByAnotherSync = false;
     if (_changing) return {};
-    if (!await _takeLease()) return manual ? {'同步': '后台同步正在进行，稍后重试即可'} : {};
+    if (!await _takeLease()) {
+      deferredByAnotherSync = true;
+      return manual ? {'同步': '后台同步正在进行，稍后重试即可'} : {};
+    }
     try {
       return await _collect(manual: manual);
     } finally {
@@ -580,10 +692,41 @@ class TaskSyncService {
     bool manual = false,
   }) async {
     await _beginHaokeAttempt('login', manual: manual);
+    final secret = await credentials.read('haoke');
+    HaokePasswordCredentials? password;
+    try {
+      final saved = jsonDecode(secret ?? '{}');
+      if (saved is Map && saved['passwordLogin'] != null) {
+        password = HaokePasswordCredentials.fromJson(saved['passwordLogin']);
+      }
+    } on FormatException {
+      throw const PlatformRequestException(
+        '好课自动登录信息损坏，请重新连接',
+        403,
+        false,
+        true,
+      );
+    }
+    Future<HaokeCredentials> renew(HaokeCredentials pair) async {
+      try {
+        return await client.renewHaoke(pair);
+      } on PlatformRequestException catch (error) {
+        if (![401, 403].contains(error.statusCode) || password == null) rethrow;
+        final restored = await _passwordSession(password);
+        if (restored.accountId != account) {
+          throw const PlatformRequestException(
+            '好课账号已变化，请重新连接并确认切换',
+            403,
+            false,
+            true,
+          );
+        }
+        return restored.pair;
+      }
+    }
+
     final pending = await credentials.readHaokeCandidate(account);
-    var next = pending == null
-        ? await client.renewHaoke(current)
-        : _decodePair(pending);
+    var next = pending == null ? await renew(current) : _decodePair(pending);
     if (pending == null) {
       await credentials.saveHaokeCandidate(account, _encodePair(next));
     }
@@ -593,7 +736,7 @@ class TaskSyncService {
     } on PlatformRequestException catch (error) {
       // 已保存候选本身过期时，仅用其配对票据再登录一次。
       if (pending == null || error.statusCode != 401) rethrow;
-      next = await client.renewHaoke(next);
+      next = await renew(next);
       await credentials.saveHaokeCandidate(account, _encodePair(next));
       identity = await client.verifyHaokeAccount(next.token);
     }
@@ -607,12 +750,13 @@ class TaskSyncService {
         true,
       );
     }
-    await credentials.save('haoke', account, _encodePair(next));
+    await credentials.save(
+      'haoke',
+      account,
+      _encodePair(next, password: password),
+    );
     await credentials.clearHaokeCandidate(account);
-    await database.deleteSetting('task_haoke_login_blocked');
-    await database.deleteSetting('task_haoke_session_error');
-    await database.deleteSetting('task_haoke_session_error_at');
-    await database.deleteSetting('task_haoke_retry_login');
+    await _resetHaokeLogin();
     return next;
   }
 
@@ -637,8 +781,15 @@ class TaskSyncService {
     onChanged?.call();
   }
 
-  String _encodePair(HaokeCredentials value) =>
-      jsonEncode({'version': 1, 'token': value.token, 'ticket': value.ticket});
+  String _encodePair(
+    HaokeCredentials value, {
+    HaokePasswordCredentials? password,
+  }) => jsonEncode({
+    'version': 1,
+    'token': value.token,
+    'ticket': value.ticket,
+    if (password != null) 'passwordLogin': password.toJson(),
+  });
 
   HaokeCredentials _decodePair(String value) {
     final decoded = jsonDecode(value);

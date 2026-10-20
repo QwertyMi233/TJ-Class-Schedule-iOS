@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'application/schedule_controller.dart';
 import 'application/startup_date.dart';
 import 'application/task_background_sync.dart';
+import 'application/star_sync_lifecycle.dart';
 import 'data/schedule_database.dart';
 import 'domain/schedule_engine.dart';
 import 'notifications/notification_lifecycle.dart';
@@ -144,14 +145,16 @@ class _CourseScheduleAppState extends ConsumerState<CourseScheduleApp> {
       theme: AppTheme.light(seedColor: seedColor),
       darkTheme: AppTheme.dark(seedColor: seedColor),
       themeMode: ThemeMode.system,
-      home: WidgetLifecycle(
-        child: !_notificationsReady
-            ? const HomePage()
-            : NotificationLifecycle(
-                service: widget.notificationService!,
-                initialDate: _initialDate,
-                child: const HomePage(),
-              ),
+      home: StarSyncLifecycle(
+        child: WidgetLifecycle(
+          child: !_notificationsReady
+              ? const HomePage()
+              : NotificationLifecycle(
+                  service: widget.notificationService!,
+                  initialDate: _initialDate,
+                  child: const HomePage(),
+                ),
+        ),
       ),
     );
   }

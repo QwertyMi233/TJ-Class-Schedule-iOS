@@ -39,7 +39,9 @@ class TaskSyncNotifications {
       await notifications.showTaskNotice(
         id: platform == 'canvas' ? 910020 : 910021,
         title: '${platform == 'canvas' ? 'Canvas' : '好课'} 连接需要更新',
-        body: '后台同步未成功：登录凭证无法验证或权限不足。已有作业保留，请打开作业→平台连接重新加载 Token。',
+        body: platform == 'haoke'
+            ? '好课登录凭证无法验证或权限不足。已有作业保留，请打开作业→平台连接重新登录。'
+            : '后台同步未成功：登录凭证无法验证或权限不足。已有作业保留，请打开作业→平台连接重新加载 Token。',
       );
     } catch (_) {
       await database.deleteSetting(key);

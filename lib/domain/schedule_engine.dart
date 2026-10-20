@@ -71,18 +71,19 @@ class ScheduleEngine {
   }
 
   /// 合并当天课程和备忘录，按开始时间排序；同一时刻先课程、后备忘录，再按标题排序。
-  /// 备忘录沿用周次、调休和节假日规则，不受课程临时停课影响。
+  /// 手工备忘录沿用教学规则，卓越星一次性活动按实际日期显示。
   List<ScheduleEntry> getEntriesForDate(DateTime date) {
     final adjustment = adjustmentForDate(date);
-    if (adjustment?.isHoliday == true) return const [];
     final week = adjustment?.replacementWeek ?? getWeekForDate(date);
-    if (week == null) return const [];
+    final teachingDay = adjustment?.isHoliday != true && week != null;
     final effectiveWeekday = adjustment?.replacementWeekday ?? date.weekday;
     final entries = <ScheduleEntry>[
       for (final course in getCoursesForDate(date)) CourseEntry(course),
       for (final memo in memos)
-        if (_scheduleMemo(memo, date, week, effectiveWeekday) case final entry?)
-          entry,
+        if (teachingDay || (memo.source == 'star' && !memo.isRecurring))
+          if (_scheduleMemo(memo, date, week ?? 1, effectiveWeekday)
+              case final entry?)
+            entry,
     ];
     entries.sort((a, b) {
       final timeOrder = a.startTime.compareTo(b.startTime);

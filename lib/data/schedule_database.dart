@@ -29,7 +29,7 @@ class ScheduleDatabase {
     final database = await selectedFactory.openDatabase(
       databasePath,
       options: OpenDatabaseOptions(
-        version: 10,
+        version: 11,
         singleInstance: singleInstance,
         onConfigure: (db) async {
           await db.rawQuery('PRAGMA journal_mode = WAL');
@@ -54,6 +54,9 @@ class ScheduleDatabase {
             );
           }
           if (oldVersion < 7) await _createMemosTable(db);
+          if (oldVersion >= 7 && oldVersion < 11) {
+            await db.execute('ALTER TABLE memos ADD COLUMN source TEXT');
+          }
           if (oldVersion < 8) await _createTasksTable(db);
           if (oldVersion >= 8 && oldVersion < 9) {
             await db.execute(
@@ -177,6 +180,7 @@ class ScheduleDatabase {
         date TEXT,
         start_minutes INTEGER,
         end_minutes INTEGER,
+        source TEXT,
         FOREIGN KEY (term_id) REFERENCES terms(id) ON DELETE CASCADE
       )
     ''');
@@ -426,6 +430,7 @@ class ScheduleDatabase {
         title: row['title'] as String,
         location: row['location'] as String,
         colorValue: row['color_value'] as int,
+        source: row['source'] as String?,
         weekday: row['weekday'] as int?,
         startPeriod: row['start_period'] as int?,
         endPeriod: row['end_period'] as int?,
@@ -447,10 +452,30 @@ class ScheduleDatabase {
     return List<Memo>.unmodifiable(memos);
   }
 
-  Future<void> replaceTermMemos(String termId, Iterable<Memo> memos) async {
+  Future<void> replaceTermMemos(
+    String termId,
+    Iterable<Memo> memos, {
+    Iterable<Memo>? previousMemos,
+  }) async {
     await database.transaction((txn) async {
-      await txn.delete('memos', where: 'term_id = ?', whereArgs: [termId]);
+      final previous = previousMemos == null
+          ? null
+          : {for (final memo in previousMemos) memo.id: memo};
+      if (previous == null) {
+        await txn.delete('memos', where: 'term_id = ?', whereArgs: [termId]);
+      } else {
+        final ids = memos.map((memo) => memo.id).toSet();
+        for (final id in previous.keys.where((id) => !ids.contains(id))) {
+          await txn.delete(
+            'memos',
+            where: 'id = ? AND term_id = ?',
+            whereArgs: [id, termId],
+          );
+        }
+      }
       for (final memo in memos) {
+        // 保留手工编辑期间后台同步的新活动。
+        if (previous != null && identical(previous[memo.id], memo)) continue;
         final weekRule = memo.weekRule;
         final explicitWeeks = weekRule?.explicitWeeks?.toList();
         explicitWeeks?.sort();
@@ -460,6 +485,7 @@ class ScheduleDatabase {
           'title': memo.title,
           'location': memo.location,
           'color_value': memo.colorValue,
+          'source': memo.source,
           'weekday': memo.weekday,
           'start_period': memo.startPeriod,
           'end_period': memo.endPeriod,
@@ -470,7 +496,7 @@ class ScheduleDatabase {
           'date': memo.date == null ? null : _dateKey(memo.date!),
           'start_minutes': memo.startMinutes,
           'end_minutes': memo.endMinutes,
-        });
+        }, conflictAlgorithm: ConflictAlgorithm.replace);
       }
     });
   }

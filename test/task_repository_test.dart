@@ -74,8 +74,14 @@ void main() {
       () => safeTaskUrl('https://example.com/?token=secret'),
       throwsFormatException,
     );
-    expect(() => safeTaskUrl('https://example.com/?%74oken=secret'), throwsFormatException);
-    expect(() => safeTaskUrl('https://example.com/#authorization=secret'), throwsFormatException);
+    expect(
+      () => safeTaskUrl('https://example.com/?%74oken=secret'),
+      throwsFormatException,
+    );
+    expect(
+      () => safeTaskUrl('https://example.com/#authorization=secret'),
+      throwsFormatException,
+    );
     expect(() => safeTaskUrl('javascript:alert(1)'), throwsFormatException);
     expect(
       () => TaskRecord.manual(
@@ -90,26 +96,38 @@ void main() {
     );
   });
 
-  test('旧版 v7 数据库升级到 v8 后保留学期课程和设置', () async {
+  test('旧版 v7 数据库升级后保留学期课程和设置', () async {
     final directory = await Directory.systemTemp.createTemp('task-upgrade-');
     addTearDown(() => directory.delete(recursive: true));
     final path = '${directory.path}${Platform.pathSeparator}schedule.db';
-    final old = await ScheduleDatabase.open(factory: databaseFactoryFfi, path: path);
+    final old = await ScheduleDatabase.open(
+      factory: databaseFactoryFfi,
+      path: path,
+    );
     await old.database.insert('terms', {
-      'id': 'current-term', 'name': '旧学期',
-      'first_week_monday': '2026-09-07', 'total_weeks': 20,
+      'id': 'current-term',
+      'name': '旧学期',
+      'first_week_monday': '2026-09-07',
+      'total_weeks': 20,
     });
     await old.database.insert('courses', {
-      'id': 'old-course', 'term_id': 'current-term',
-      'name': '旧课程', 'teacher': '张老师', 'color_value': 123,
+      'id': 'old-course',
+      'term_id': 'current-term',
+      'name': '旧课程',
+      'teacher': '张老师',
+      'color_value': 123,
     });
     await old.saveSetting('theme_seed_color', '789');
-    // 用完整现有表结构回退版本号，仅移除 v8 新表，模拟真实 v7 升级。
+    // 移除 v7 之后新增的表和列，再回退版本号。
     await old.database.execute('DROP TABLE tasks');
+    await old.database.execute('ALTER TABLE memos DROP COLUMN source');
     await old.database.execute('PRAGMA user_version = 7');
     await old.close();
 
-    final upgraded = await ScheduleDatabase.open(factory: databaseFactoryFfi, path: path);
+    final upgraded = await ScheduleDatabase.open(
+      factory: databaseFactoryFfi,
+      path: path,
+    );
     addTearDown(upgraded.close);
     final schedule = await upgraded.loadTermSchedule('current-term');
     expect(schedule?.term.name, '旧学期');

@@ -69,7 +69,7 @@ void main() {
         final schedule = await upgraded.loadTermSchedule('current-term');
         expect(schedule!.term.name, '原学期');
         expect(schedule.courses.single.name, '原课程');
-        expect(await upgraded.database.getVersion(), 10);
+        expect(await upgraded.database.getVersion(), 11);
         expect(await upgraded.loadScheduleAdjustments(), isNotEmpty);
         expect(await upgraded.loadMemos('current-term'), isEmpty);
       } finally {
