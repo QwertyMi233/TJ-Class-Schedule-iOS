@@ -42,7 +42,7 @@ import {
 } from "@/components/ui/sheet"
 
 const github = "https://github.com/qp338113/TJ-Class-Schedule"
-const download = "/downloads/TJ-Class-Schedule-v0.3.0-arm64-v8a.zip"
+const download = "/downloads/TJ-Class-Schedule-v0.3.1-arm64-v8a.zip"
 const counterEndpoint = "/api/download-count"
 
 function readCount(value: unknown): number | null {
@@ -65,7 +65,7 @@ const questions = [
   { question: "为什么只支持 64 位？", answer: "当前安装包仅支持 64 位 ARM 设备（arm64-v8a）；32 位老机型装不上或闪退。" },
   { question: "提示签名冲突怎么办？", answer: "请先覆盖安装以保留数据。若提示签名冲突，请先备份课表并联系反馈群；不要直接卸载或清除数据。当前安装包沿用前几次本地更新包的测试签名。" },
   { question: "小组件不动怎么办？", answer: "安装后先打开 App 一次；如果仍看不到变化，把小组件从桌面删掉重新添加。" },
-  { question: "会上传我的课表吗？", answer: "课表、作业、学期和设置保存在手机；平台凭证由系统安全存储保存。读取课表、检查调休或连接 Canvas、好课时会访问对应平台，开启自动同步后也会在后台访问。数据和凭证不会上传到开发者服务器。" },
+  { question: "会上传我的课表吗？", answer: "课表、作业、学期和设置保存在手机；平台凭证由系统安全存储保存。读取课表、检查调休或连接 Canvas、好课、卓越星时会访问对应平台，开启自动同步后也会在后台访问。数据和凭证不会上传到开发者服务器。" },
   { question: "为什么调休要自己选补哪一天？", answer: "国家调休通知只说明哪天上班，不含学校具体补课安排；学校校历以图片发布无法自动读取。因此需要手动选一个日期，App 会对应教学周与星期。" },
 ] as const
 
@@ -217,7 +217,7 @@ function App() {
           <span className="eyebrow">TJ CLASS SCHEDULE · ANDROID</span>
           <h1 id="hero-title">课表留在手机里</h1>
           <p className="hero-description">为同济学生做的离线优先课表与作业 App。</p>
-            <p className="hero-release">0.3.0 · 新增定位寻物</p>
+            <p className="hero-release">0.3.1 · 好课密码恢复与卓越星活动同步</p>
           <div className="hero-actions">
             <Button type="button" size="lg" onClick={startDownload} disabled={downloadBusy} aria-busy={downloadBusy}>{downloadBusy ? "已开始下载" : "获取安装包"} <Download aria-hidden="true" /></Button>
             <Button asChild variant="outline" size="lg"><a href="#community">加入交流群 <ArrowRight aria-hidden="true" /></a></Button>
@@ -286,20 +286,20 @@ function App() {
           <div className="page-width section-center reveal-section" data-reveal>
             <span className="eyebrow">开始使用</span>
             <h2 id="install-title">下载到 Android 手机</h2>
-            <p className="section-line">版本 0.3.0 · Android 8.0 及以上 · 64 位 ARM。</p>
+            <p className="section-line">版本 0.3.1 · Android 8.0 及以上 · 64 位 ARM。</p>
             <Dialog>
               <DialogTrigger asChild><Button variant="link" className="faq-link">查看新版更新说明</Button></DialogTrigger>
               <DialogContent className="info-dialog">
-                <DialogHeader><DialogTitle>0.3.0 · 定位寻物与使用体验改进</DialogTitle><DialogDescription>2026 年 10 月 18 日更新</DialogDescription></DialogHeader>
+                <DialogHeader><DialogTitle>0.3.1 · 好课与卓越星同步更新</DialogTitle><DialogDescription>2026 年 10 月 20 日更新</DialogDescription></DialogHeader>
                 <ul className="info-list">
-                  <li>课表右上角打开定位，保存多个位置，寻找时查看直线距离和动态方向。</li>
-                  <li>改善背景图与课表的融合，新增背景柔化，修复换图和裁剪问题。</li>
-                  <li>一次性备忘录只填开始时间即可，结束时刻可选。</li>
-                  <li>支持 Canvas 自动续期和好课定期登录；好课临时网络失败后有限补试。</li>
-                  <li>减少同步弹窗，简化错误提示，恢复后清除对应提示。</li>
+                  <li>好课可加密保存账号密码，票据失效后自动恢复登录。</li>
+                  <li>卓越星官方网页登录后，已报名活动同步为一次性备忘录。</li>
+                  <li>活动显示在今日、本周课表和小组件，平台改期时随之更新。</li>
+                  <li>取消报名移除尚未开始的活动，保留自建备忘录。</li>
+                  <li>简化连接入口，保留定位寻物、背景图与 Canvas 续期。</li>
                 </ul>
-                <p>396 项 Flutter 测试、5 项 Android 测试及构建检查通过。熄屏同步仍受手机省电设置影响，尚未在全部机型验证。</p>
-                <a className="dialog-link" href="/updates/v0.3.0.txt" target="_blank" rel="noopener noreferrer">阅读完整更新公告</a>
+                <p>459 项 Flutter 测试、5 项 Android 测试及构建检查通过。好课熄屏同步仍待真机验证，后台执行受手机省电设置影响。</p>
+                <a className="dialog-link" href="/updates/v0.3.1.txt" target="_blank" rel="noopener noreferrer">阅读完整更新公告</a>
               </DialogContent>
             </Dialog>
             <div className="section-actions">
@@ -372,7 +372,7 @@ function App() {
             <span>微信：LJ-QWQ1144</span>
           </div>
           <p className="footer-disclaimer">本应用为非同济官方应用，不代表学校提供服务，不代学校发布信息。课程与考试安排请以学校教务通知及实际教学安排为准。</p>
-          <p className="footer-meta">版本 0.3.0+12 · 更新日期 2026/10/18</p>
+          <p className="footer-meta">版本 0.3.1+13 · 更新日期 2026/10/20</p>
           <p className="footer-download-count" role="status" aria-live="polite">
             <span>网站下载次数</span>
             <strong>{counterStatus === "ready" ? downloadCount?.toLocaleString("zh-CN") : counterStatus === "loading" ? "读取中…" : "暂不可用"}</strong>
