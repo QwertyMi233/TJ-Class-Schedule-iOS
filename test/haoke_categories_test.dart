@@ -249,8 +249,8 @@ void main() {
         expect(saved.completed, isTrue);
       } finally {
         await db.close();
-        await File(path).delete();
-        await folder.delete();
+        // SQLite may leave journal files beside the closed database on macOS.
+        await folder.delete(recursive: true);
       }
     });
   }
