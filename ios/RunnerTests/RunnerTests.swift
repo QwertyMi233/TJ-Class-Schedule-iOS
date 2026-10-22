@@ -4,6 +4,15 @@ import UIKit
 @testable import tj_text_recognition
 
 final class RunnerTests: XCTestCase {
+    func testAppGroupRequiresSharedEntitlementEvenWhenExtensionHasNoGroups() {
+        let app: Set<String> = ["group.app"]
+        XCTAssertEqual(TJWidgetStore.sharedGroups(app, []), Set<String>())
+        XCTAssertEqual(TJWidgetStore.sharedGroups([], app), Set<String>())
+        XCTAssertEqual(TJWidgetStore.sharedGroups(app, ["group.other"]), Set<String>())
+        XCTAssertEqual(TJWidgetStore.sharedGroups(app, ["group.app"]), app)
+        XCTAssertEqual(TJWidgetStore.sharedGroups(app, nil), app)
+    }
+
     func testWidgetSnapshotReadsLatestAtomicWriteAndKeepsScopesSeparate() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }

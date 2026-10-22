@@ -6,37 +6,42 @@ import Foundation
 enum TJWidgetStore {
     static var configuredGroup: String? { Bundle.main.object(forInfoDictionaryKey: "TJAppGroup") as? String }
 
-    static func profileGroups(_ bundle: Bundle) -> Set<String> {
+    /// nil means a profile could not be inspected; an empty set means the
+    /// inspected profile explicitly grants no App Groups.
+    static func profileGroups(_ bundle: Bundle) -> Set<String>? {
         guard let url = bundle.url(forResource: "embedded", withExtension: "mobileprovision"),
               let data = try? Data(contentsOf: url),
               let start = data.range(of: Data("<?xml".utf8)),
               let end = data.range(of: Data("</plist>".utf8), in: start.lowerBound..<data.endIndex),
               let root = try? PropertyListSerialization.propertyList(from: data.subdata(in: start.lowerBound..<end.upperBound), options: [], format: nil) as? [String: Any],
-              let entitlements = root["Entitlements"] as? [String: Any] else { return [] }
+              let entitlements = root["Entitlements"] as? [String: Any] else { return nil }
         return Set(entitlements["com.apple.security.application-groups"] as? [String] ?? [])
     }
 
-    static var sharedProfileGroups: Set<String> {
-        let own = profileGroups(.main)
+    static var peerBundle: Bundle? {
         if Bundle.main.bundleURL.pathExtension == "appex" {
-            let appURL = Bundle.main.bundleURL.deletingLastPathComponent().deletingLastPathComponent()
-            guard let app = Bundle(url: appURL) else { return own }
-            let groups = profileGroups(app)
-            return groups.isEmpty ? own : own.intersection(groups)
+            return Bundle(url: Bundle.main.bundleURL.deletingLastPathComponent().deletingLastPathComponent())
         }
         guard let plugins = Bundle.main.builtInPlugInsURL,
-              let urls = try? FileManager.default.contentsOfDirectory(at: plugins, includingPropertiesForKeys: nil) else { return own }
-        let widgets = urls.compactMap(Bundle.init(url:)).filter {
+              let urls = try? FileManager.default.contentsOfDirectory(at: plugins, includingPropertiesForKeys: nil) else { return nil }
+        return urls.compactMap(Bundle.init(url:)).first {
             ($0.object(forInfoDictionaryKey: "NSExtension") as? [String: Any])?["NSExtensionPointIdentifier"] as? String == "com.apple.widgetkit-extension"
         }
-        let extensionGroups = widgets.reduce(into: Set<String>()) { $0.formUnion(profileGroups($1)) }
-        return extensionGroups.isEmpty ? own : own.intersection(extensionGroups)
+    }
+
+    static func sharedGroups(_ own: Set<String>?, _ peer: Set<String>?) -> Set<String> {
+        if let own = own, let peer = peer { return own.intersection(peer) }
+        return own ?? peer ?? []
+    }
+
+    static var sharedProfileGroups: Set<String> {
+        sharedGroups(profileGroups(.main), peerBundle.flatMap { profileGroups($0) })
     }
 
     static var group: String? {
         let provisioned = sharedProfileGroups
         if let configured = configuredGroup,
-           (!bothProfilesDeclareGroups || provisioned.contains(configured)),
+           (!bothProfilesAvailable || provisioned.contains(configured)),
            FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: configured) != nil { return configured }
         let available = provisioned.sorted().filter {
             FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: $0) != nil
@@ -45,17 +50,8 @@ enum TJWidgetStore {
         return available.count == 1 ? available[0] : nil
     }
 
-    static var bothProfilesDeclareGroups: Bool {
-        guard !profileGroups(.main).isEmpty else { return false }
-        if Bundle.main.bundleURL.pathExtension == "appex" {
-            let appURL = Bundle.main.bundleURL.deletingLastPathComponent().deletingLastPathComponent()
-            return Bundle(url: appURL).map { !profileGroups($0).isEmpty } ?? false
-        }
-        guard let plugins = Bundle.main.builtInPlugInsURL,
-              let urls = try? FileManager.default.contentsOfDirectory(at: plugins, includingPropertiesForKeys: nil) else { return false }
-        return urls.compactMap(Bundle.init(url:)).contains {
-            ($0.object(forInfoDictionaryKey: "NSExtension") as? [String: Any])?["NSExtensionPointIdentifier"] as? String == "com.apple.widgetkit-extension" && !profileGroups($0).isEmpty
-        }
+    static var bothProfilesAvailable: Bool {
+        profileGroups(.main) != nil && peerBundle.flatMap { profileGroups($0) } != nil
     }
 
     static var directory: URL? {
