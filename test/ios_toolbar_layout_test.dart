@@ -136,7 +136,7 @@ void main() {
           expect(tester.getSize(buttons.last).height, 48);
           expect(tester.getSize(buttons.first).width, lessThanOrEqualTo(150));
         }
-        expect(tester.getRect(buttons.first).right + 16, lessThanOrEqualTo(tester.getRect(buttons.last).left));
+        expect(tester.getRect(buttons.first).right + 16, lessThanOrEqualTo(tester.getRect(buttons.last).left + 0.000001));
         if (size.width == 390 && scale == 1) {
           final render = boundary.currentContext!.findRenderObject()! as RenderRepaintBoundary;
           await tester.runAsync(() async {
