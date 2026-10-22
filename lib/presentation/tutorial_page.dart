@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../platform/platform_support.dart';
 
 class TutorialPage extends StatelessWidget {
   const TutorialPage({super.key});
@@ -9,7 +10,7 @@ class TutorialPage extends StatelessWidget {
       appBar: AppBar(title: const Text('使用教程')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
-        children: const [
+        children: [
           Text(
             '不用担心设置复杂，按下面顺序操作一次就可以了。课程、图片和设置都只保存在你的手机里。',
             style: TextStyle(height: 1.6),
@@ -88,32 +89,36 @@ class TutorialPage extends StatelessWidget {
             number: '9',
             icon: Icons.notifications_active_outlined,
             title: '设置上课提醒',
-            text:
-                '在“提醒设置”中点“提前时间”，可以自己输入 1 到 1440 分钟；提醒方式可选“仅通知”“通知加震动”或“通知加震动和声音”。'
-                '如果提醒时间正在上另一节课，默认会延后到下课 3 分钟后。备忘录的提前时间可以在同一页单独设置。',
+            text: isIOSDevice
+                ? '在“提醒设置”中选择提前时间和声音。通知震动由 iOS 设置控制，专注模式或静音可能影响展示与声音；打开 App 后会补排后续提醒。'
+                : '在“提醒设置”中点“提前时间”，可以自己输入 1 到 1440 分钟；提醒方式可选“仅通知”“通知加震动”或“通知加震动和声音”。'
+                      '如果提醒时间正在上另一节课，默认会延后到下课 3 分钟后。备忘录的提前时间可以在同一页单独设置。',
           ),
           _TutorialStep(
             number: '10',
             icon: Icons.widgets_outlined,
             title: '添加桌面小组件',
-            text:
-                '长按手机桌面空白处，进入“小组件”或“服务卡片”，找到“TJ Class Schedule”，添加“下一节课”或“作业倒计时”。长按组件拖动边缘可以缩放，较小时保留标题和倒计时。'
-                '安装或修改课表后，请打开 App 一次让小组件同步；如果刚装新版看不到变化，把小组件删掉重新添加即可。',
+            text: isIOSDevice
+                ? '先打开 App 一次，再长按主屏幕 → 编辑 → 添加小组件，搜索 TJ Class Schedule，选择下一节课或作业倒计时。锁屏编辑界面也可添加。'
+                : '长按手机桌面空白处，进入“小组件”或“服务卡片”，找到“TJ Class Schedule”，添加“下一节课”或“作业倒计时”。长按组件拖动边缘可以缩放，较小时保留标题和倒计时。'
+                      '安装或修改课表后，请打开 App 一次让小组件同步；如果刚装新版看不到变化，把小组件删掉重新添加即可。',
           ),
           _TutorialStep(
             number: '11',
             icon: Icons.timer_outlined,
             title: '调整小组件外观与刷新',
-            text:
-                '在“外观设置”的“小组件颜色”里可以单独给小组件设颜色，只影响普通状态，临近上课时的提醒色不变。'
-                '下面的“倒计时刷新频率”有三档：省电（更省电，数字可能有几分钟不准）、正常（每分钟刷新）、精确（每秒刷新，最准但最耗电）。',
+            text: isIOSDevice
+                ? '在“外观设置”中调整组件颜色。倒计时由系统绘制，内容刷新由 iOS 调度；不提供每秒强制刷新选项。'
+                : '在“外观设置”的“小组件颜色”里可以单独给小组件设颜色，只影响普通状态，临近上课时的提醒色不变。'
+                      '下面的“倒计时刷新频率”有三档：省电（更省电，数字可能有几分钟不准）、正常（每分钟刷新）、精确（每秒刷新，最准但最耗电）。',
           ),
           _TutorialStep(
             number: '12',
             icon: Icons.battery_saver_outlined,
-            title: '完成后台放行',
-            text:
-                '最后到“提醒设置”打开国产 Android 后台设置教程，允许自启动和后台活动，并关闭电池优化，否则锁屏后提醒可能延迟。',
+            title: isIOSDevice ? '设置 iOS 通知与后台' : '完成后台放行',
+            text: isIOSDevice
+                ? '到“提醒设置”查看 iOS 教程，允许通知与后台 App 刷新。强制退出、低电量模式和专注模式可能影响更新或提醒展示。'
+                : '最后到“提醒设置”打开国产 Android 后台设置教程，允许自启动和后台活动，并关闭电池优化，否则锁屏后提醒可能延迟。',
           ),
         ],
       ),

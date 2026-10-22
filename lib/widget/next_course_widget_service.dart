@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:android_intent_plus/android_intent.dart';
 import 'package:flutter/services.dart';
@@ -13,6 +14,10 @@ class NextCourseWidgetService {
   static const _channel = MethodChannel('offline_course_schedule/widget');
 
   Future<void> syncBackground(ScheduleData schedule, {DateTime? now}) async {
+    if (Platform.isIOS) {
+      await sync(schedule, now: now, updateAppearance: false);
+      return;
+    }
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(
       'schedule_widget_courses',
@@ -62,7 +67,11 @@ class NextCourseWidgetService {
     );
     final items = <Map<String, Object>>[];
     for (var offset = 0; offset < 14; offset++) {
-      final date = firstDay.add(Duration(days: offset));
+      final date = DateTime(
+        firstDay.year,
+        firstDay.month,
+        firstDay.day + offset,
+      );
       for (final entry in engine.getEntriesForDate(date)) {
         if (!entry.startTime.isAfter(current)) continue;
         // 备忘录没有教师，适配成空字符串以沿用现有的小组件数据结构和 Kotlin 侧逻辑。

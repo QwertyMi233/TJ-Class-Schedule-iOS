@@ -3,6 +3,13 @@
 .flutter-plugins-dependencies
 .packages
 build/
+dist/
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/ephemeral/
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_export_environment.sh
+ios/Runner/GeneratedPluginRegistrant.*
 android/.gradle/
 android/.kotlin/
 android/local.properties

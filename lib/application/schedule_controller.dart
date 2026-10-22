@@ -324,10 +324,7 @@ class ScheduleController extends AsyncNotifier<ScheduleData> {
     final term = current?.term;
     if (current == null || term == null) return 0;
     final service = ref.read(nationalHolidayServiceProvider);
-    final years = {
-      term.firstWeekMonday.year,
-      term.firstWeekMonday.add(Duration(days: term.totalWeeks * 7 - 1)).year,
-    };
+    final years = {term.firstWeekMonday.year, term.lastDay.year};
     final dates = <DateTime>[];
     final holidays = <DateTime, String>{};
     for (final year in years) {

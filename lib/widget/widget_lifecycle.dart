@@ -71,6 +71,7 @@ class _WidgetLifecycleState extends ConsumerState<WidgetLifecycle>
     try {
       await const NextCourseWidgetService().sync(
         schedule,
+        now: ref.read(clockProvider).valueOrNull,
         colorValue: color.valueOrNull,
         refreshMode: refresh.valueOrNull,
         updateAppearance: color.hasValue && refresh.hasValue,

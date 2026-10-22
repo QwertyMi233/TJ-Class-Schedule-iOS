@@ -59,7 +59,11 @@ class ReminderPlanner {
     final firstDay = DateTime(now.year, now.month, now.day);
     final pending = <({ScheduleEntry entry, DateTime reminderAt})>[];
     for (var offset = 0; offset < 7; offset++) {
-      final date = firstDay.add(Duration(days: offset));
+      final date = DateTime(
+        firstDay.year,
+        firstDay.month,
+        firstDay.day + offset,
+      );
       for (final entry in engine.getEntriesForDate(date)) {
         // 备忘录有自己的提前时间，与课程的 advanceMinutes 相互独立。
         final advanceMinutes = entry.isMemo
@@ -109,9 +113,7 @@ class ReminderPlanner {
       return ReminderPlan(
         id: 1000 + index,
         scheduledAt: item.reminderAt,
-        title: entry.isMemo
-            ? '${entry.title} 即将开始'
-            : '${entry.title} 即将上课',
+        title: entry.isMemo ? '${entry.title} 即将开始' : '${entry.title} 即将上课',
         body:
             '${_time(entry.startTime)}${location.isEmpty ? '' : ' · $location'}',
         payload: _datePayload(entry.startTime),
@@ -139,7 +141,11 @@ class ReminderPlanner {
     final firstDay = DateTime(now.year, now.month, now.day);
     final upcoming = <ScheduledCourse>[];
     for (var offset = 0; offset < 7; offset++) {
-      final date = firstDay.add(Duration(days: offset));
+      final date = DateTime(
+        firstDay.year,
+        firstDay.month,
+        firstDay.day + offset,
+      );
       upcoming.addAll(
         engine
             .getCoursesForDate(date)

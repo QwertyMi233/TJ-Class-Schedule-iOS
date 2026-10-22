@@ -200,8 +200,9 @@ class LocationHomePage extends ConsumerWidget {
                                           width: 52,
                                           height: 52,
                                           decoration: BoxDecoration(
-                                            color: Color(place.color)
-                                                .withValues(alpha: .12),
+                                            color: Color(
+                                              place.color,
+                                            ).withValues(alpha: .12),
                                             borderRadius: BorderRadius.circular(
                                               17,
                                             ),

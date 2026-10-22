@@ -1,0 +1,49 @@
+name: iOS 编译与验证
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  CI: 'true'
+  BOT: 'true'
+  FLUTTER_SUPPRESS_ANALYTICS: 'true'
+
+jobs:
+  ios:
+    name: iOS 27 编译、原生测试和未签名 IPA
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: 选择 Xcode 27.1 或更新版本
+        run: python3 scripts/select_xcode.py
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.7'
+          channel: stable
+          cache: true
+      - name: 检查与构建设备安装包
+        run: bash scripts/build_ios.sh
+      - name: 保存未签名 IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: TJ-Class-Schedule-iOS-unsigned
+          path: dist/TJ-Class-Schedule-iOS-unsigned.ipa
+          if-no-files-found: error
+      - name: 编译模拟器版本
+        run: flutter build ios --simulator --debug --no-pub
+      - name: 在可用的 iOS 27 模拟器上运行原生测试
+        run: python3 scripts/test_ios_simulators.py
+      - name: 保存原生测试结果
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: iOS-native-test-results
+          path: dist/ios-tests/
+          if-no-files-found: ignore

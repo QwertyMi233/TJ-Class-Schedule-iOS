@@ -1,12 +1,14 @@
 name: offline_course_schedule
 description: 完全离线的个人课程表（当前阶段：数据、导入与周次判定）
 publish_to: none
-version: 0.3.1+13
+version: 0.3.1+14
 
 environment:
   sdk: ">=3.10.0 <4.0.0"
 
 dependencies:
+  tj_ios_bridge:
+    path: packages/tj_ios_bridge
   canvas_session_bridge:
     path: packages/canvas_session_bridge
   flutter:
@@ -38,6 +40,8 @@ dev_dependencies:
   webview_flutter_platform_interface: ^2.15.1
 
 flutter:
+  config:
+    enable-swift-package-manager: false
   uses-material-design: true
   assets:
     - assets/LICENSE_HITable.txt

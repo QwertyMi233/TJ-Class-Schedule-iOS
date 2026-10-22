@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import '../platform/platform_support.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../application/schedule_controller.dart';
@@ -222,12 +223,18 @@ class AppearanceSettingsPage extends ConsumerWidget {
                 const Divider(height: 1, indent: 16),
                 ListTile(
                   leading: const Icon(Icons.timer_outlined),
-                  title: const Text('倒计时刷新频率'),
+                  title: Text(isIOSDevice ? '系统倒计时' : '倒计时刷新频率'),
                   subtitle: Text(
-                    '${refreshMode.label} · ${_refreshModeHint(refreshMode)}',
+                    isIOSDevice
+                        ? '倒计时由系统显示，内容刷新由 iOS 调度'
+                        : '${refreshMode.label} · ${_refreshModeHint(refreshMode)}',
                   ),
-                  trailing: const Icon(Icons.chevron_right_rounded),
-                  onTap: () => _pickRefreshMode(context, ref, refreshMode),
+                  trailing: isIOSDevice
+                      ? null
+                      : const Icon(Icons.chevron_right_rounded),
+                  onTap: isIOSDevice
+                      ? null
+                      : () => _pickRefreshMode(context, ref, refreshMode),
                 ),
               ],
             ),

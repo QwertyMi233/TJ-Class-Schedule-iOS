@@ -251,7 +251,7 @@ class ScheduleDatabase {
             'is_holiday': 1,
             'holiday_name': entry.key,
           }, conflictAlgorithm: ConflictAlgorithm.replace);
-          date = date.add(const Duration(days: 1));
+          date = DateTime(date.year, date.month, date.day + 1);
         }
       }
     }

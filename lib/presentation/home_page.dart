@@ -313,7 +313,9 @@ class _ScheduleHome extends ConsumerWidget {
                       } else if (value == 'star') {
                         Navigator.push(
                           context,
-                          MaterialPageRoute<void>(builder: (_) => const StarConnectionPage()),
+                          MaterialPageRoute<void>(
+                            builder: (_) => const StarConnectionPage(),
+                          ),
                         );
                       } else if (value == 'appearance') {
                         Navigator.push(
@@ -446,8 +448,10 @@ class _ScheduleHome extends ConsumerWidget {
   void _changeDate(WidgetRef ref, DateTime date, int days) {
     // 记下方向，供日期内容做横向滑入动画。
     ref.read(_dateChangeDirectionProvider.notifier).state = days >= 0 ? 1 : -1;
-    ref.read(selectedDateProvider.notifier).state = date.add(
-      Duration(days: days),
+    ref.read(selectedDateProvider.notifier).state = DateTime(
+      date.year,
+      date.month,
+      date.day + days,
     );
   }
 
@@ -498,9 +502,9 @@ class _ScheduleHome extends ConsumerWidget {
       ),
     );
     if (selected == null) return;
-    final weekdayOffset = selectedDate.weekday - DateTime.monday;
-    ref.read(selectedDateProvider.notifier).state = term.firstWeekMonday.add(
-      Duration(days: (selected - 1) * 7 + weekdayOffset),
+    ref.read(selectedDateProvider.notifier).state = term.dateOf(
+      selected,
+      selectedDate.weekday,
     );
   }
 
@@ -860,14 +864,16 @@ class _WeekView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final monday = selectedDate.subtract(
-      Duration(days: selectedDate.weekday - 1),
+    final monday = DateTime(
+      selectedDate.year,
+      selectedDate.month,
+      selectedDate.day - selectedDate.weekday + 1,
     );
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
       itemCount: 7,
       itemBuilder: (context, index) {
-        final date = monday.add(Duration(days: index));
+        final date = DateTime(monday.year, monday.month, monday.day + index);
         final courses = engine.getEntriesForDate(date);
         return Padding(
           padding: const EdgeInsets.only(bottom: 18),

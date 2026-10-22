@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
@@ -26,6 +28,10 @@ class NotificationService {
   final _tappedTasks = StreamController<String>.broadcast();
   String? initialTaskId;
   final _planner = const ReminderPlanner();
+  static const _iosQueue = MethodChannel(
+    'offline_course_schedule/ios_notifications',
+  );
+  bool get _isIOS => defaultTargetPlatform == TargetPlatform.iOS;
 
   Stream<DateTime> get tappedDates => _tappedDates.stream;
   Stream<String> get tappedTasks => _tappedTasks.stream;
@@ -37,6 +43,11 @@ class NotificationService {
     await _plugin.initialize(
       settings: const InitializationSettings(
         android: AndroidInitializationSettings('ic_notification'),
+        iOS: DarwinInitializationSettings(
+          requestAlertPermission: false,
+          requestBadgePermission: false,
+          requestSoundPermission: false,
+        ),
       ),
       onDidReceiveNotificationResponse: (response) {
         final taskId = _taskPayload(response.payload);
@@ -55,6 +66,15 @@ class NotificationService {
   }
 
   Future<void> requestAndroidPermissions() async {
+    // Kept under its original name for existing callers and Android tests.
+    if (_isIOS) {
+      await _plugin
+          .resolvePlatformSpecificImplementation<
+            IOSFlutterLocalNotificationsPlugin
+          >()
+          ?.requestPermissions(alert: true, badge: true, sound: true);
+      return;
+    }
     final android = _plugin
         .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin
@@ -64,6 +84,7 @@ class NotificationService {
   }
 
   Future<bool> canScheduleExactNotifications() async {
+    if (_isIOS) return notificationsEnabled();
     final android = _plugin
         .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin
@@ -72,6 +93,14 @@ class NotificationService {
   }
 
   Future<bool> notificationsEnabled() async {
+    if (_isIOS) {
+      final status = await _plugin
+          .resolvePlatformSpecificImplementation<
+            IOSFlutterLocalNotificationsPlugin
+          >()
+          ?.checkPermissions();
+      return status?.isEnabled ?? false;
+    }
     final android = _plugin
         .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin
@@ -89,6 +118,12 @@ class NotificationService {
       title: 'TJ Class Schedule 测试提醒',
       body: '如果你看到这条消息，通知显示功能正常。',
       notificationDetails: NotificationDetails(
+        iOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentBanner: true,
+          presentList: true,
+          presentSound: mode == ReminderAlertMode.soundAndVibration,
+        ),
         android: AndroidNotificationDetails(
           // 必须换新渠道 id：Android 不允许调高已存在渠道的重要性
           'course_reminder_test_v2_${mode.name}',
@@ -114,6 +149,13 @@ class NotificationService {
     body: body,
     payload: 'task:',
     notificationDetails: const NotificationDetails(
+      iOS: DarwinNotificationDetails(
+        presentAlert: true,
+        presentBanner: true,
+        presentList: true,
+        presentSound: true,
+        threadIdentifier: 'task-sync',
+      ),
       android: AndroidNotificationDetails(
         'task_sync_updates',
         '作业同步与连接提醒',
@@ -126,6 +168,7 @@ class NotificationService {
   );
 
   Future<bool> sendTaskTestNotification() async {
+    if (_isIOS) await requestAndroidPermissions();
     final android = _plugin
         .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin
@@ -148,6 +191,47 @@ class NotificationService {
     required NotificationSettings settings,
     DateTime? now,
   }) async {
+    if (_isIOS) {
+      final current = now ?? DateTime.now();
+      final term = schedule.term;
+      final plans = term == null
+          ? <ReminderPlan>[]
+          : _planner.createPlans(
+              now: current,
+              term: term,
+              courses: schedule.courses,
+              memos: schedule.memos,
+              adjustments: schedule.adjustments,
+              cancellations: schedule.cancellations,
+              settings: settings,
+            );
+      final lockPlans = term == null
+          ? <LockScreenCoursePlan>[]
+          : _planner.createLockScreenPlans(
+              now: current,
+              term: term,
+              courses: schedule.courses,
+              adjustments: schedule.adjustments,
+              cancellations: schedule.cancellations,
+              settings: settings,
+            );
+      return _replaceIOSScope('courses', [
+        for (final plan in plans)
+          _iosRequest(
+            plan,
+            sound: settings.alertMode == ReminderAlertMode.soundAndVibration,
+          ),
+        for (final plan in lockPlans)
+          {
+            'id': plan.id,
+            'timeMillis': plan.scheduledAt.millisecondsSinceEpoch,
+            'title': plan.title,
+            'body': plan.body,
+            'payload': plan.payload,
+            'sound': false,
+          },
+      ]);
+    }
     // 课表重排只取消待触发的课程通知，保留作业的预约。
     for (final pending in await _plugin.pendingNotificationRequests()) {
       if (_parsePayload(pending.payload) != null) {
@@ -255,6 +339,16 @@ class NotificationService {
     required TaskReminderSettings settings,
     DateTime? now,
   }) async {
+    if (_isIOS) {
+      return _replaceIOSScope('tasks', [
+        for (final plan in taskReminderPlans(
+          tasks,
+          settings,
+          now ?? DateTime.now(),
+        ))
+          _iosRequest(plan, sound: true),
+      ]);
+    }
     for (final pending in await _plugin.pendingNotificationRequests()) {
       if (_taskPayload(pending.payload) != null) {
         await _plugin.cancel(id: pending.id);
@@ -288,6 +382,25 @@ class NotificationService {
     }
     return plans.length;
   }
+
+  Map<String, Object> _iosRequest(ReminderPlan plan, {required bool sound}) => {
+    'id': plan.id,
+    'timeMillis': plan.scheduledAt.millisecondsSinceEpoch,
+    'title': plan.title,
+    'body': plan.body,
+    'payload': plan.payload,
+    'sound': sound,
+  };
+
+  Future<int> _replaceIOSScope(
+    String scope,
+    List<Map<String, Object>> requests,
+  ) async =>
+      await _iosQueue.invokeMethod<int>('replaceScope', {
+        'scope': scope,
+        'requests': requests,
+      }) ??
+      0;
 
   Future<void> dispose() async {
     await _tappedDates.close();
