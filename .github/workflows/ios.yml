@@ -30,6 +30,13 @@ jobs:
           cache: true
       - name: 检查与构建设备安装包
         run: bash scripts/build_ios.sh
+      - name: 保存界面布局检查图
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: iOS-toolbar-layout-previews
+          path: artifacts/ios-toolbar/
+          if-no-files-found: ignore
       - name: 保存未签名 IPA
         uses: actions/upload-artifact@v4
         with:

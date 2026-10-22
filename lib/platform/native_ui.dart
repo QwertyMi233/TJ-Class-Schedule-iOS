@@ -22,9 +22,10 @@ String widgetLabel(Widget? widget) {
   return '';
 }
 
-String sfSymbol(Widget? icon) {
+String? sfSymbol(Widget? icon) {
   final data = icon is Icon ? icon.icon : null;
   return switch (data) {
+    m.Icons.more_horiz || m.Icons.more_vert => 'ellipsis',
     m.Icons.location_on_outlined => 'location',
     m.Icons.assignment_outlined => 'checklist',
     m.Icons.file_upload_outlined => 'square.and.arrow.up',
@@ -41,7 +42,7 @@ String sfSymbol(Widget? icon) {
     m.Icons.delete_outline || m.Icons.delete_outline_rounded => 'trash',
     m.Icons.palette_outlined => 'paintpalette',
     m.Icons.save_outlined || m.Icons.save => 'square.and.arrow.down',
-    _ => 'ellipsis',
+    _ => null,
   };
 }
 

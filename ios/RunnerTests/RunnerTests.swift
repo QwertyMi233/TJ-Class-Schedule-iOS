@@ -38,7 +38,7 @@ final class RunnerTests: XCTestCase {
             context.fill(CGRect(x: 0, y: 0, width: 600, height: 180))
             let attributes: [NSAttributedString.Key: Any] = [.font: UIFont.systemFont(ofSize: 36), .foregroundColor: UIColor.black]
             ("数学 101" as NSString).draw(at: CGPoint(x: 25, y: 20), withAttributes: attributes)
-            ("Physics 202" as NSString).draw(at: CGPoint(x: 25, y: 95), withAttributes: attributes)
+            ("PHYSICS 202" as NSString).draw(at: CGPoint(x: 25, y: 95), withAttributes: attributes)
         }
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".png")
         defer { try? FileManager.default.removeItem(at: url) }

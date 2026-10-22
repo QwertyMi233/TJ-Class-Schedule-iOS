@@ -57,27 +57,11 @@ class _TongjiTimetablePageState extends State<TongjiTimetablePage> {
       appBar: AppBar(
         title: const Text('从同济1系统导入'),
         actions: [
-          IconButton(
-            tooltip: _desktopMode ? '切换到手机模式' : '切换到电脑模式',
-            onPressed: _toggleDesktopMode,
-            icon: Icon(
-              _desktopMode
-                  ? Icons.desktop_windows_outlined
-                  : Icons.phone_android_outlined,
-            ),
-          ),
-          IconButton(
-            tooltip: '重新加载',
-            onPressed: _controller.reload,
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              if (value == 'logout') _clearLogin();
-            },
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'logout', child: Text('退出并清除登录信息')),
-            ],
+          TongjiTimetableActions(
+            desktopMode: _desktopMode,
+            onToggleMode: _toggleDesktopMode,
+            onReload: _controller.reload,
+            onLogout: _confirmClearLogin,
           ),
         ],
       ),
@@ -250,6 +234,21 @@ class _TongjiTimetablePageState extends State<TongjiTimetablePage> {
     );
   }
 
+  Future<void> _confirmClearLogin() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: const Text('清除登录信息？'),
+        content: const Text('将清除内置网页保存的登录信息，之后需要重新登录。已导入的课表不会删除。'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('取消')),
+          TextButton(onPressed: () => Navigator.pop(dialog, true), child: const Text('退出登录')),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) await _clearLogin();
+  }
+
   Future<void> _clearLogin() async {
     await WebViewCookieManager().clearCookies();
     await _controller.clearCache();
@@ -261,6 +260,42 @@ class _TongjiTimetablePageState extends State<TongjiTimetablePage> {
   void _showMessage(String text) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
   }
+}
+
+/// A dedicated action strip keeps all three browser functions visible and
+/// independently tappable without introducing a single-item overflow menu.
+class TongjiTimetableActions extends StatelessWidget {
+  const TongjiTimetableActions({
+    super.key,
+    required this.desktopMode,
+    required this.onToggleMode,
+    required this.onReload,
+    required this.onLogout,
+  });
+  final bool desktopMode;
+  final VoidCallback onToggleMode, onReload, onLogout;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      IconButton(
+        tooltip: desktopMode ? '切换到手机模式' : '切换到电脑模式',
+        onPressed: onToggleMode,
+        icon: Icon(desktopMode ? Icons.desktop_windows_outlined : Icons.phone_android_outlined),
+      ),
+      IconButton(
+        tooltip: '重新加载',
+        onPressed: onReload,
+        icon: const Icon(Icons.refresh_rounded),
+      ),
+      IconButton(
+        tooltip: '退出并清除登录信息',
+        onPressed: onLogout,
+        icon: const Icon(Icons.logout),
+      ),
+    ],
+  );
 }
 
 // 根据网页中周几标题和节次行的位置，确定每张课程卡片所在的格子。

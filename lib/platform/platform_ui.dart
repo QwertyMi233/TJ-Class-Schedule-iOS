@@ -8,6 +8,7 @@ import 'package:flutter/cupertino.dart' as c;
 import 'package:flutter/material.dart' as m;
 import 'package:flutter/services.dart';
 import 'native_ui.dart';
+import 'ios_icons.dart';
 import 'platform_support.dart';
 
 export 'package:flutter/material.dart'
@@ -73,89 +74,34 @@ class AppBar extends m.StatelessWidget implements m.PreferredSizeWidget {
         centerTitle: centerTitle,
         automaticallyImplyLeading: automaticallyImplyLeading,
       );
-    final callbacks = <String, m.VoidCallback>{};
-    final rows = <Map<String, Object?>>[];
-    for (final (index, widget) in (actions ?? <m.Widget>[]).indexed) {
-      final row = _navigationAction(context, widget, '$index', callbacks);
-      if (row != null) rows.add(row);
-    }
-    final back = automaticallyImplyLeading && m.Navigator.canPop(context);
-    callbacks['back'] = () => m.Navigator.maybePop(context);
-    final bar = canHostNativeUI && leading == null && title is m.Text
-        ? NativeUIControl(
-            configuration: {
-              'kind': 'navigation',
-              'title': widgetLabel(title),
-              'back': back,
-              'actions': rows,
-            },
-            onAction: (id) => callbacks[id]?.call(),
-          )
-        : c.CupertinoNavigationBar(
-            middle: title,
-            leading: leading,
-            automaticallyImplyLeading: automaticallyImplyLeading,
-            border: null,
-            backgroundColor: c.CupertinoColors.systemBackground
-                .resolveFrom(context)
-                .withValues(alpha: .88),
-            trailing: actions == null
-                ? null
-                : m.Row(mainAxisSize: m.MainAxisSize.min, children: actions!),
-          );
-    return m.DecoratedBox(
-      decoration: m.BoxDecoration(
-        color:
-            backgroundColor ??
-            c.CupertinoColors.systemGroupedBackground.resolveFrom(context),
-      ),
-      child: m.Column(
-        mainAxisSize: m.MainAxisSize.min,
-        children: [
-          if (canHostNativeUI && leading == null && title is m.Text)
-            m.SafeArea(bottom: false, child: m.SizedBox(height: 44, child: bar))
-          else
-            bar,
-          if (bottom != null) bottom!,
-        ],
-      ),
+    // Keep toolbar actions in Flutter so every supplied icon is available
+    // offline and a native symbol-name fallback can never turn them into dots.
+    final middle = title == null ? null : m.DefaultTextStyle.merge(
+      maxLines: 1,
+      overflow: m.TextOverflow.ellipsis,
+      child: title!,
+    );
+    return m.Column(
+      mainAxisSize: m.MainAxisSize.min,
+      children: [
+        c.CupertinoNavigationBar(
+          middle: middle,
+          leading: leading,
+          automaticallyImplyLeading: automaticallyImplyLeading,
+          padding: const m.EdgeInsetsDirectional.only(start: 8, end: 8),
+          border: null,
+          backgroundColor: backgroundColor ?? c.CupertinoColors.systemBackground
+              .resolveFrom(context).withValues(alpha: .88),
+          trailing: actions == null || actions!.isEmpty ? null : m.Row(
+            key: const m.ValueKey('ios-toolbar-actions'),
+            mainAxisSize: m.MainAxisSize.min,
+            children: actions!,
+          ),
+        ),
+        if (bottom != null) bottom!,
+      ],
     );
   }
-}
-
-Map<String, Object?>? _navigationAction(
-  m.BuildContext context,
-  m.Widget widget,
-  String id,
-  Map<String, m.VoidCallback> callbacks,
-) {
-  if (widget is m.IconButton) {
-    if (widget.onPressed != null) callbacks[id] = widget.onPressed!;
-    return {
-      'id': id,
-      'title': widget.tooltip ?? '',
-      'symbol': sfSymbol(widget.icon),
-      'enabled': widget.onPressed != null,
-    };
-  }
-  if (widget is m.ButtonStyleButton) {
-    if (widget.onPressed != null) callbacks[id] = widget.onPressed!;
-    return {
-      'id': id,
-      'title': widgetLabel(widget.child),
-      'enabled': widget.onPressed != null,
-    };
-  }
-  if (widget is PopupMenuButton) {
-    return {
-      'id': id,
-      'title': widget.tooltip ?? '更多',
-      'symbol': 'ellipsis',
-      'enabled': widget.enabled,
-      'menu': widget.menu(context, id, callbacks),
-    };
-  }
-  return null;
 }
 
 class IconButton extends m.IconButton {
@@ -181,15 +127,17 @@ class IconButton extends m.IconButton {
           button: true,
           enabled: onPressed != null,
           child: c.CupertinoButton(
-            padding: padding ?? const m.EdgeInsets.all(8),
-            minimumSize: const m.Size(40, 40),
+            padding: padding ?? const m.EdgeInsets.all(12),
+            minimumSize: const m.Size(44, 44),
             onPressed: onPressed,
             child: m.IconTheme(
               data: m.IconThemeData(
-                size: iconSize ?? 23,
-                color: color ?? c.CupertinoTheme.of(context).primaryColor,
+                size: iconSize ?? 20,
+                color: onPressed == null
+                    ? c.CupertinoColors.inactiveGray.resolveFrom(context)
+                    : color ?? c.CupertinoTheme.of(context).primaryColor,
               ),
-              child: icon,
+              child: iosIcon(icon, size: iconSize ?? 20),
             ),
           ),
         );
@@ -207,11 +155,14 @@ m.Widget _iosButton(
       child: button.child ?? const m.SizedBox(),
     );
   }
-  final child = button.child ?? const m.SizedBox();
+  final child = m.DefaultTextStyle.merge(
+    style: const m.TextStyle(fontSize: 16, fontWeight: m.FontWeight.w500),
+    child: button.child ?? const m.SizedBox(),
+  );
   return filled
       ? c.CupertinoButton.filled(
           onPressed: button.onPressed,
-          padding: const m.EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+          padding: const m.EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: child,
         )
       : c.CupertinoButton(
@@ -224,7 +175,7 @@ m.Widget _iosButton(
 m.Widget _buttonLabel(m.Widget icon, m.Widget label) => m.Row(
   mainAxisSize: m.MainAxisSize.min,
   children: [
-    icon,
+    isIOSDevice ? iosIcon(icon, size: 18) : icon,
     const m.SizedBox(width: 6),
     m.Flexible(child: label),
   ],
@@ -339,25 +290,31 @@ class FloatingActionButton extends m.FloatingActionButton {
     // The material superclass stores extended content in child; retain its label.
     final title = widgetLabel(nativeLabel);
     final icon = nativeIcon;
+    final hasIcon = icon != null;
     final painter = m.TextPainter(
-      text: m.TextSpan(text: title, style: const m.TextStyle(fontSize: 17)),
-      textDirection: m.TextDirection.ltr,
+      text: m.TextSpan(text: title, style: const m.TextStyle(
+        fontSize: 16, fontWeight: m.FontWeight.w500,
+      )),
+      textDirection: m.Directionality.of(context),
       textScaler: m.MediaQuery.textScalerOf(context),
     )..layout();
+    final contentPadding = 32.0 + (hasIcon ? 26 : 0);
     final width = math.min(
       (m.MediaQuery.sizeOf(context).width - 48) / 2,
-      math.max(112.0, painter.width + 64),
+      math.max(112.0, painter.width + contentPadding),
     );
-    painter.layout(maxWidth: math.max(40, width - 56));
+    painter.layout(maxWidth: math.max(16, width - contentPadding));
+    final height = math.max(48.0, painter.height + 20);
+    painter.dispose();
     return m.SizedBox(
       width: width,
-      height: math.max(52, painter.height + 24),
+      height: height,
       child: canHostNativeUI
           ? NativeUIControl(
               configuration: {
                 'kind': 'button',
                 'title': title,
-                'symbol': sfSymbol(icon),
+                if (hasIcon) 'symbol': sfSymbol(icon),
                 'prominent': false,
                 'enabled': onPressed != null,
               },
@@ -365,9 +322,20 @@ class FloatingActionButton extends m.FloatingActionButton {
             )
           : c.CupertinoButton.filled(
               onPressed: onPressed,
-              borderRadius: m.BorderRadius.circular(30),
-              padding: const m.EdgeInsets.symmetric(horizontal: 12),
-              child: m.Text(title),
+              borderRadius: m.BorderRadius.circular(24),
+              padding: const m.EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              child: m.Row(
+                mainAxisSize: m.MainAxisSize.min,
+                children: [
+                  if (icon != null) ...[
+                    iosIcon(icon, size: 20),
+                    const m.SizedBox(width: 6),
+                  ],
+                  m.Flexible(child: m.Text(title, style: const m.TextStyle(
+                    fontSize: 16, fontWeight: m.FontWeight.w500,
+                  ))),
+                ],
+              ),
             ),
     );
   }
@@ -425,14 +393,16 @@ class PopupMenuButton<T> extends m.StatelessWidget {
       );
     final callbacks = <String, m.VoidCallback>{};
     final rows = menu(context, 'menu', callbacks);
-    if (canHostNativeUI)
-      return m.SizedBox(
-        width: 44,
-        height: 44,
+    // Keep the anchored system menu, with a plain 44-point icon trigger.
+    // Custom unmapped glyphs use the bundled Flutter control below.
+    if (canHostNativeUI && child == null && (icon == null || sfSymbol(icon) != null)) {
+      return m.SizedBox.square(
+        dimension: 44,
         child: NativeUIControl(
           configuration: {
             'kind': 'menu',
-            'symbol': 'ellipsis',
+            'flat': true,
+            'symbol': icon == null ? 'ellipsis' : sfSymbol(icon),
             'label': tooltip ?? '更多',
             'menu': rows,
             'enabled': enabled,
@@ -440,8 +410,11 @@ class PopupMenuButton<T> extends m.StatelessWidget {
           onAction: (id) => callbacks[id]?.call(),
         ),
       );
+    }
+
     return c.CupertinoButton(
-      padding: const m.EdgeInsets.all(8),
+      padding: const m.EdgeInsets.all(12),
+      minimumSize: const m.Size(44, 44),
       onPressed: !enabled
           ? null
           : () => c.showCupertinoModalPopup<void>(
@@ -465,7 +438,7 @@ class PopupMenuButton<T> extends m.StatelessWidget {
                 ),
               ),
             ),
-      child: icon ?? const m.Icon(c.CupertinoIcons.ellipsis),
+      child: child ?? iosIcon(icon ?? const m.Icon(c.CupertinoIcons.ellipsis), size: 20),
     );
   }
 }

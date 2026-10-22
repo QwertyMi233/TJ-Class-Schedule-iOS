@@ -58,27 +58,6 @@ final class TJNativeUIView: NSObject, FlutterPlatformView {
                                      blue: CGFloat(rgb & 255) / 255, alpha: 1)
         }
         switch configuration["kind"] as? String {
-        case "navigation":
-            let bar = UINavigationBar()
-            let item = UINavigationItem(title: configuration["title"] as? String ?? "")
-            if configuration["back"] as? Bool == true {
-                let back = UIBarButtonItem(image: UIImage(systemName: "chevron.left"), primaryAction: UIAction { [weak self] _ in self?.send("back") })
-                back.accessibilityLabel = "返回"
-                item.leftBarButtonItem = back
-            }
-            let actions = configuration["actions"] as? [[String: Any]] ?? []
-            item.rightBarButtonItems = actions.reversed().map { row in
-                let action = UIAction { [weak self] _ in self?.send(row["id"] as? String ?? "") }
-                let children = row["menu"] as? [[String: Any]]
-                let button = UIBarButtonItem(title: row["symbol"] == nil ? row["title"] as? String : nil,
-                                              image: image(row), primaryAction: children == nil ? action : nil,
-                                              menu: children.map(menu))
-                button.accessibilityLabel = row["title"] as? String
-                button.isEnabled = row["enabled"] as? Bool != false
-                return button
-            }
-            bar.setItems([item], animated: false)
-            add(bar)
         case "segmented":
             let control = UISegmentedControl(items: configuration["titles"] as? [String] ?? [])
             control.selectedSegmentIndex = configuration["selected"] as? Int ?? 0
@@ -89,16 +68,25 @@ final class TJNativeUIView: NSObject, FlutterPlatformView {
         default:
             let button = UIButton(type: .system)
             var style: UIButton.Configuration
-            if #available(iOS 26.0, *) {
+            let flat = configuration["flat"] as? Bool == true
+            if flat {
+                style = .plain()
+            } else if #available(iOS 26.0, *) {
                 style = configuration["prominent"] as? Bool == true ? .prominentGlass() : .glass()
             } else {
                 style = configuration["prominent"] as? Bool == true ? .filled() : .tinted()
             }
             style.title = configuration["title"] as? String
             style.image = image(configuration)
-            style.imagePadding = 8
+            style.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
+                var attributes = incoming
+                attributes.font = UIFontMetrics(forTextStyle: .body).scaledFont(for: .systemFont(ofSize: 16, weight: .medium))
+                return attributes
+            }
+            style.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: 20, weight: .regular)
+            style.imagePadding = 6
             style.cornerStyle = .capsule
-            style.contentInsets = NSDirectionalEdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16)
+            style.contentInsets = flat ? .zero : NSDirectionalEdgeInsets(top: 10, leading: 14, bottom: 10, trailing: 14)
             button.configuration = style
             button.titleLabel?.adjustsFontForContentSizeCategory = true
             button.titleLabel?.numberOfLines = 2
@@ -111,7 +99,7 @@ final class TJNativeUIView: NSObject, FlutterPlatformView {
             } else {
                 button.addAction(UIAction { [weak self] _ in self?.send("tap") }, for: .touchUpInside)
             }
-            add(button, inset: 2)
+            add(button, inset: flat ? 0 : 2)
         }
     }
     private func add(_ view: UIView, inset: CGFloat = 0) {
