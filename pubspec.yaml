@@ -1,7 +1,7 @@
 name: offline_course_schedule
 description: 完全离线的个人课程表（当前阶段：数据、导入与周次判定）
 publish_to: none
-version: 0.3.1+14
+version: 0.3.1+15
 
 environment:
   sdk: ">=3.10.0 <4.0.0"
@@ -21,7 +21,8 @@ dependencies:
   flutter_riverpod: ^2.6.1
   flutter_secure_storage: ^10.3.4
   flutter_timezone: ^5.1.0
-  google_mlkit_text_recognition: ^0.16.0
+  tj_text_recognition:
+    path: packages/tj_text_recognition
   path: ^1.9.0
   path_provider: ^2.1.6
   pointycastle: ^4.0.0

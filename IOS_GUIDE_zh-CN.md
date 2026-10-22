@@ -2,7 +2,7 @@
 
 基于你提供的 0.3.1+13 源码制作；本工程版本为 **0.3.1+14**。
 
-本包交付 iOS 移植源码和构建流程。当前执行环境是 Linux，**未进行 Xcode 编译、未生成 IPA、未完成真机或全机型验收**。不要将源码检查通过等同于 iOS 成品已通过验收。
+已通过 GitHub 的 Xcode 27.1 构建设备版及未签名 IPA。当前 0.3.1+15 将 iOS OCR 改为 Apple Vision，正在重新验证；**尚未完成真机或全机型验收**。
 
 ## 工程中已添加什么
 
@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | 学期、课程、备忘录、单双周与调休 | 复用 Flutter 与 SQLite 逻辑 | 与 Android 数据、日期显示一致 |
 | 同济 1 系统课表导入 | 内置 WebView，沿用原解析器 | 学校统一认证、跳转和真实课表 |
-| CSV、XLSX、图片识别 | 复用导入流程；添加中文 ML Kit CocoaPod | 中文截图识别、文件选择与导入预览 |
+| CSV、XLSX、图片识别 | 复用导入流程；iOS 使用 Apple Vision 识别中文/英文，Android 保留 ML Kit 中文模型 | 中文截图识别、文件选择与导入预览 |
 | 作业与好课、Canvas、卓越星同步 | 复用原业务逻辑，接入 iOS 后台任务 | 用户自己的平台登录、续期与同步 |
 | Canvas 会话维护 | WKWebView + 本机钥匙串，复用 Android 的轮换脚本 | 前台令牌续期、账号切换与中断恢复 |
 | 课程和作业通知 | iOS 通知权限、统一排程队列 | 锁屏、静音、专注模式、点击跳转 |
@@ -42,7 +42,7 @@ Runner 和组件的设备类别均为 iPhone + iPad；最低部署版本设为 i
 bash scripts/build_ios.sh
 ```
 
-脚本依次检查工程配置、获取依赖、执行 Flutter 静态分析和测试、编译设备版本，并把实际编译出的应用及组件打包。首次 CocoaPods 下载中文 OCR 模型可能较慢。
+脚本依次检查工程配置、获取依赖、执行 Flutter 静态分析和测试、编译设备版本，并把实际编译出的应用及组件打包。iOS 使用系统 Vision 框架，不再下载 Google ML Kit iOS 二进制。
 
 成功后会得到：
 
@@ -78,10 +78,10 @@ App Groups 等能力取决于开发者账户与签名配置。如果所用签名
 
 1. 将解压后的工程内容放入自己的 GitHub 仓库根目录，保留 `.github`、`ios`、`packages` 等文件夹。
 2. 在 Actions 中选择“iOS 编译与验证”，点击 Run workflow。
-3. 流程会选取构建机已安装的 Xcode 27.1+，执行检查、编译设备包及模拟器版本，再在该构建机上所有可用的 iOS 27 iPhone/iPad 模拟器运行原生测试。
+3. 流程使用 `xcode-27` 托管构建机并选取已安装的 Xcode 27.1+，执行检查、编译设备包及模拟器版本，再在该构建机上所有可用的 iOS 27 iPhone/iPad 模拟器运行原生测试。
 4. 流程成功后下载 `TJ-Class-Schedule-iOS-unsigned` 构建产物。
 
-如果托管构建机尚未安装所需 Xcode 或 iOS 27 模拟器，流程会明确失败，需更新构建环境或使用自己的 Mac。没有将“工作流已写好”当作“工作流已经成功执行”。本次没有向任何 GitHub 仓库推送代码或触发远程构建。
+如果托管构建机尚未安装所需 Xcode 或 iOS 27 模拟器，流程会明确失败，需更新构建环境或使用自己的 Mac。没有将“工作流已写好”当作“工作流已经成功执行”。本项目的移植代码和构建记录见 [PR #1](https://github.com/QwertyMi233/TJ-Class-Schedule-iOS/pull/1)。
 
 ## 如何验收“所有 iOS 27 设备”
 
@@ -115,4 +115,4 @@ python3 scripts/test_ios_simulators.py
 - [Flutter：iOS 开发环境](https://docs.flutter.dev/platform-integration/ios/setup)
 - [Workmanager：iOS 设置](https://docs.page/fluttercommunity/flutter_workmanager/quickstart)
 - [通知插件：iOS 容量及配置限制](https://pub.dev/packages/flutter_local_notifications)
-- [文字识别插件：中文模型与 iOS 依赖](https://pub.dev/packages/google_mlkit_text_recognition)
+- [Apple Vision：图片文字识别](https://developer.apple.com/documentation/vision/recognizing-text-in-images)

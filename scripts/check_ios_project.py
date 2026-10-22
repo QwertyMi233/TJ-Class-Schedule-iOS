@@ -40,7 +40,7 @@ check(set(re.findall(r'IPHONEOS_DEPLOYMENT_TARGET = ([\d.]+);', project)) == {'1
 check('TARGETED_DEVICE_FAMILY = "1,2"' in project, 'iPhone and iPad support')
 app_id = re.search(r'^TJ_BUNDLE_ID\s*=\s*(.+)$', (ios / 'Config/App.xcconfig').read_text(), re.M)
 check(app_id is not None, 'app bundle identifier')
-for package in ['canvas_session_bridge', 'tj_ios_bridge']:
+for package in ['canvas_session_bridge', 'tj_ios_bridge', 'tj_text_recognition']:
     text = (root / 'packages' / package / 'pubspec.yaml').read_text()
     check('ios:' in text and 'pluginClass:' in text, package + ' registration')
     check((root / 'packages' / package / 'ios' / (package + '.podspec')).is_file(), package + ' podspec')

@@ -2,7 +2,7 @@
 
 日期：2026-10-22（Asia/Singapore）。
 
-**交付状态：iOS 移植源码已整理，尚待 macOS/Xcode 编译与设备验收。本包不包含 IPA，也没有完成“所有 iOS 27 设备正常使用”的验证。**
+**交付状态：已在 Xcode 27.1 / iOS 27.1 SDK 下构建设备版和未签名 IPA。0.3.1+15 将 iOS OCR 切换为 Apple Vision，正在重新构建与测试；尚未完成“所有 iOS 27 设备正常使用”的验证。**
 
 ## 已执行
 
@@ -25,17 +25,17 @@
 
 | 项目 | 当前状态 |
 | --- | --- |
-| CocoaPods 在 macOS 上解析和链接 | 未执行；尚未生成 Podfile.lock |
-| Xcode 27.1+ 编译 iPhoneOS 应用与扩展 | 未执行 |
-| Xcode 模拟器编译与运行 | 未执行 |
-| 4 项新增原生 XCTest | 已写入工程，未执行 |
-| Swift 原生 API 类型检查和 WidgetKit 实际渲染 | 未执行 |
+| CocoaPods 在 macOS 上解析和链接 | 初版通过，Vision 改版重新验证中 |
+| Xcode 27.1+ 编译 iPhoneOS 应用与扩展 | 0.3.1+14 通过，0.3.1+15 重新验证中 |
+| Xcode 模拟器编译与运行 | 初版编译通过；运行被 ML Kit 模拟器架构限制阻断，已改接 Vision 并重新验证 |
+| 6 项原生 XCTest（含中文/英文 OCR） | 已写入工程，重新验证中 |
+| Swift 原生 API 类型检查和 WidgetKit 实际渲染 | 初版编译通过；组件实际渲染仍待验收 |
 | 所有真实 iOS 27 设备测试 | 未执行 |
 | 学校真实账户登录与接口联调 | 未执行 |
 | 中文 OCR 真机识别、真实定位和指南针 | 未执行 |
 | 熄屏后台同步与通知可靠性 | 未执行 |
 | 签名、IPA 安装、TestFlight / App Store 分发 | 未执行 |
-| 工程自带 GitHub Actions | 已提供，未推送、未触发 |
+| 工程自带 GitHub Actions | 已推送并触发，见 PR #1 |
 
 下一步在 Mac 运行 `bash scripts/build_ios.sh` 和 `python3 scripts/test_ios_simulators.py`，处理原生编译或测试中发现的问题，再按 `IOS_GUIDE_zh-CN.md` 完成设备验收。不能用本次源码层面的通过结果替代这些步骤。
 

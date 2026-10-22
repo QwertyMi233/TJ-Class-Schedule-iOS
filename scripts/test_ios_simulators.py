@@ -34,7 +34,7 @@ for runtime, device in selected:
     command = ['xcodebuild', '-workspace', 'ios/Runner.xcworkspace', '-scheme', 'Runner',
                '-configuration', 'Debug', '-sdk', 'iphonesimulator',
                '-destination', 'id=' + identifier, '-resultBundlePath', str(result_bundle),
-               'test', 'CODE_SIGNING_ALLOWED=NO']
+               'test', 'CODE_SIGN_IDENTITY=-']
     with log.open('w') as output:
         try:
             run = subprocess.run(command, cwd=root, stdout=output, stderr=subprocess.STDOUT, timeout=900)
@@ -43,6 +43,12 @@ for runtime, device in selected:
             status = 'timed_out'
     results.append({'runtime': runtime, 'device': device['name'], 'udid': identifier, 'status': status})
     (out / 'matrix.json').write_text(json.dumps(results, ensure_ascii=False, indent=2))
+    if status != 'passed':
+        detail = log.read_text(errors='replace')
+        print('\n'.join(detail.splitlines()[-70:]), flush=True)
+        # A build/destination failure cannot be fixed by choosing another screen size.
+        if 'Test Suite' not in detail and 'Test suite' not in detail:
+            break
     if device.get('state') == 'Shutdown':
         subprocess.run(['xcrun', 'simctl', 'shutdown', identifier], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 if any(item['status'] != 'passed' for item in results):

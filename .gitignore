@@ -37,3 +37,6 @@ PROJECT_HANDOFF.md
 RELEASE_NOTES.txt
 *.docx
 ~$*.docx
+
+__pycache__/
+*.pyc

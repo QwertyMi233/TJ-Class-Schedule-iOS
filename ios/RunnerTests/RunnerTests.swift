@@ -1,7 +1,32 @@
 import Foundation
 import XCTest
+import UIKit
+@testable import tj_text_recognition
 
 final class RunnerTests: XCTestCase {
+    func testVisionReadsChineseAndEnglishScreenshot() throws {
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 600, height: 180))
+        let image = renderer.image { context in
+            UIColor.white.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 600, height: 180))
+            let attributes: [NSAttributedString.Key: Any] = [.font: UIFont.systemFont(ofSize: 36), .foregroundColor: UIColor.black]
+            ("数学 101" as NSString).draw(at: CGPoint(x: 25, y: 20), withAttributes: attributes)
+            ("Physics 202" as NSString).draw(at: CGPoint(x: 25, y: 95), withAttributes: attributes)
+        }
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".png")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try XCTUnwrap(image.pngData()).write(to: url)
+        let text = try TJImageTextRecognizer.recognize(url: url, cpuOnly: true)
+        XCTAssertTrue(text.contains("数学"), text)
+        XCTAssertTrue(text.contains("Physics"), text)
+        XCTAssertTrue(text.contains("202"), text)
+    }
+
+    func testVisionRejectsAnUnreadableImage() {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".png")
+        XCTAssertThrowsError(try TJImageTextRecognizer.recognize(url: url))
+    }
+
     func testWidgetAdvancesAtCourseStartAndHandlesMemo() throws {
         let data = Data("""
         [{"name":"微积分","teacher":"张老师","location":"A101","startMillis":200000,"isMemo":false},

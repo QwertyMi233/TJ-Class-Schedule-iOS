@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
+import 'package:tj_text_recognition/tj_text_recognition.dart';
 
 import '../application/schedule_controller.dart';
 import '../domain/schedule_models.dart';
@@ -195,17 +195,8 @@ class _TermSetupPageState extends ConsumerState<TermSetupPage> {
       } else {
         final path = file.path;
         if (path == null) throw const FormatException('无法读取图片路径');
-        final recognizer = TextRecognizer(
-          script: TextRecognitionScript.chinese,
-        );
-        try {
-          final text = await recognizer.processImage(
-            InputImage.fromFilePath(path),
-          );
-          suggestion = _termParser.inferFromText(text.text);
-        } finally {
-          await recognizer.close();
-        }
+        final text = await ScreenshotTextRecognition.recognizeFile(path);
+        suggestion = _termParser.inferFromText(text);
       }
       final weeks = suggestion.totalWeeks;
       if (weeks == null) {
