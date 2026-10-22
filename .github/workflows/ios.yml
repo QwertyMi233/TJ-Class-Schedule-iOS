@@ -17,7 +17,7 @@ env:
 jobs:
   ios:
     name: iOS 27 编译、原生测试和未签名 IPA
-    runs-on: macos-latest
+    runs-on: xcode-27
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4

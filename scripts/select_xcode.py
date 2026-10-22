@@ -17,6 +17,7 @@ for app in Path('/Applications').glob('Xcode*.app'):
             choices.append((version, app))
 if not choices:
     raise SystemExit('This runner has no Xcode 27.1+. Use an updated macOS image or a self-hosted Mac.')
-version, app = max(choices, key=lambda value: value[0])
+# Prefer the required SDK line over a newer beta toolchain.
+version, app = min(choices, key=lambda value: value[0])
 subprocess.run(['sudo', 'xcode-select', '--switch', str(app / 'Contents/Developer')], check=True)
 print('Selected', app.name)
