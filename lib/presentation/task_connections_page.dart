@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import '../platform/platform_ui.dart';
+import '../platform/platform_support.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'task_browser_page.dart';
 
@@ -284,7 +285,7 @@ class _TaskConnectionsPageState extends ConsumerState<TaskConnectionsPage>
         future: _status,
         builder: (context, snapshot) {
           if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(child: CircularProgressIndicator.adaptive());
           }
           final values = snapshot.data!;
           return ListView(
@@ -292,7 +293,7 @@ class _TaskConnectionsPageState extends ConsumerState<TaskConnectionsPage>
             children: [
               const Text('连接仅保存在本机，离线也能查看已同步作业。'),
               const SizedBox(height: 12),
-              SwitchListTile(
+              SwitchListTile.adaptive(
                 secondary: IconButton(
                   tooltip: '后台运行设置',
                   onPressed: _busy
@@ -307,7 +308,11 @@ class _TaskConnectionsPageState extends ConsumerState<TaskConnectionsPage>
                   icon: const Icon(Icons.battery_saver_outlined),
                 ),
                 title: const Text('自动检查作业（含后台）'),
-                subtitle: const Text('约每 30 分钟更新，省电模式下可能延后。'),
+                subtitle: Text(
+                  isIOSDevice
+                      ? '后台更新由 iOS 调度；打开 App 也会检查。'
+                      : '约每 30 分钟更新，省电模式下可能延后。',
+                ),
                 value: values['task_auto_sync'] == 'true',
                 onChanged: _busy ? null : _setAuto,
               ),

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:android_intent_plus/android_intent.dart';
@@ -24,6 +25,10 @@ class TaskWidgetService {
       channel.invokeMethod<void>('updateTasks', {'tasks': _payload(tasks)});
 
   Future<void> syncBackground(List<TaskRecord> tasks) async {
+    if (Platform.isIOS) {
+      await sync(tasks);
+      return;
+    }
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('task_widget_tasks', jsonEncode(_payload(tasks)));
     await const AndroidIntent(

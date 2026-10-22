@@ -120,6 +120,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "6.0.0"
+  cupertino_icons:
+    dependency: "direct main"
+    description:
+      name: cupertino_icons
+      sha256: ba631d1c7f7bef6b729a622b7b752645a2d076dba9976925b8f25725a30e1ee6
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.8"
   dbus:
     dependency: transitive
     description:
@@ -269,6 +277,11 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.1.1"
+  flutter_localizations:
+    dependency: "direct main"
+    description: flutter
+    source: sdk
+    version: "0.0.0"
   flutter_riverpod:
     dependency: "direct main"
     description:
@@ -343,22 +356,6 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
-  google_mlkit_commons:
-    dependency: transitive
-    description:
-      name: google_mlkit_commons
-      sha256: c7fc384bdb66c3b83e24e3a41818e61d7a378d900f65f5e775344fbca95a0917
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.12.0"
-  google_mlkit_text_recognition:
-    dependency: "direct main"
-    description:
-      name: google_mlkit_text_recognition
-      sha256: "8324fdc2628ebeb63568ad06437b984b716d938d87e4ce63ab24dfd3eeebf08a"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.16.0"
   hooks:
     dependency: transitive
     description:
@@ -383,6 +380,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "4.1.2"
+  intl:
+    dependency: transitive
+    description:
+      name: intl
+      sha256: "1ca20c894b1717686a2319b8548763d812bc0aabdac580420a44c5178c57a867"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.20.3"
   jni:
     dependency: transitive
     description:
@@ -788,6 +793,20 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.11.1"
+  tj_ios_bridge:
+    dependency: "direct main"
+    description:
+      path: "packages/tj_ios_bridge"
+      relative: true
+    source: path
+    version: "0.1.0"
+  tj_text_recognition:
+    dependency: "direct main"
+    description:
+      path: "packages/tj_text_recognition"
+      relative: true
+    source: path
+    version: "0.1.0"
   typed_data:
     dependency: transitive
     description:

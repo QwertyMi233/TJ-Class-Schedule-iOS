@@ -1,0 +1,5 @@
+// Change these identifiers to ones owned by your Apple Developer team.
+TJ_BUNDLE_ID = icu.tjschedule.classschedule
+TJ_APP_GROUP = group.icu.tjschedule.classschedule
+CODE_SIGN_STYLE = Automatic
+DEVELOPMENT_TEAM =

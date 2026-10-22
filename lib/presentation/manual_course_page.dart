@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import '../platform/platform_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../application/schedule_controller.dart';
@@ -294,7 +294,7 @@ class _ManualCoursePageState extends ConsumerState<ManualCoursePage> {
           trailing: Text(_minutesText(_memoStartMinutes)),
           onTap: () => _pickMemoTime(isStart: true),
         ),
-        SwitchListTile(
+        SwitchListTile.adaptive(
           contentPadding: EdgeInsets.zero,
           title: const Text('设置结束时刻'),
           subtitle: const Text('可选；关闭后只按开始时刻提醒'),

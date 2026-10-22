@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'application/schedule_controller.dart';
@@ -141,6 +142,8 @@ class _CourseScheduleAppState extends ConsumerState<CourseScheduleApp> {
     );
     return MaterialApp(
       title: 'TJ Class Schedule',
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
+      supportedLocales: const [Locale('zh', 'CN'), Locale('en', 'US')],
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(seedColor: seedColor),
       darkTheme: AppTheme.dark(seedColor: seedColor),

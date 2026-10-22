@@ -13,3 +13,5 @@ flutter:
       android:
         package: icu.tjschedule.canvas_session
         pluginClass: CanvasSessionPlugin
+      ios:
+        pluginClass: CanvasSessionPlugin

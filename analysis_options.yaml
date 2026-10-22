@@ -9,3 +9,4 @@ analyzer:
     - work/**
     - tmp/**
     - android/**
+    - ios/**

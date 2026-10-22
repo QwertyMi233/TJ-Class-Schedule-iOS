@@ -1,0 +1,17 @@
+name: tj_text_recognition
+description: On-device screenshot text recognition using Apple Vision or Android ML Kit.
+version: 0.1.0
+publish_to: none
+environment:
+  sdk: '>=3.10.0 <4.0.0'
+dependencies:
+  flutter:
+    sdk: flutter
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: icu.tjschedule.text_recognition
+        pluginClass: TJTextRecognitionPlugin
+      ios:
+        pluginClass: TJTextRecognitionPlugin

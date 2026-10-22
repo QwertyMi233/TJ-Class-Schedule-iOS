@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/material.dart';
+import '../platform/platform_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../application/task_state.dart';
@@ -127,7 +127,7 @@ class _TaskImportPageState extends ConsumerState<TaskImportPage> {
                   '${task.course} · ${task.platform} · ${task.dueAt?.toLocal() ?? '无截止时间'}',
                 ),
               ),
-            CheckboxListTile(
+            CheckboxListTile.adaptive(
               value: _confirmed,
               title: const Text('我已核对课程、作业和截止时间'),
               onChanged: (value) => setState(() => _confirmed = value ?? false),

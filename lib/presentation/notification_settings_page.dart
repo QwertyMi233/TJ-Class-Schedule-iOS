@@ -1,10 +1,11 @@
-import 'package:flutter/material.dart';
+import '../platform/platform_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../application/schedule_controller.dart';
 import '../domain/notification_settings.dart';
 import '../notifications/notification_service.dart';
+import '../platform/platform_support.dart';
 import 'magic_os_guide_page.dart';
 import 'tutorial_page.dart';
 
@@ -17,7 +18,8 @@ class NotificationSettingsPage extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('提醒设置')),
       body: asyncSettings.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () =>
+            const Center(child: CircularProgressIndicator.adaptive()),
         error: (_, __) => const Center(child: Text('设置加载失败')),
         data: (settings) => ListView(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
@@ -25,7 +27,7 @@ class NotificationSettingsPage extends ConsumerWidget {
             Card(
               child: Column(
                 children: [
-                  SwitchListTile(
+                  SwitchListTile.adaptive(
                     title: const Text('上课提醒'),
                     subtitle: const Text('关闭后会取消所有待发送提醒'),
                     value: settings.enabled,
@@ -33,7 +35,7 @@ class NotificationSettingsPage extends ConsumerWidget {
                         _update(ref, settings.copyWith(enabled: value)),
                   ),
                   const Divider(height: 1, indent: 16),
-                  SwitchListTile(
+                  SwitchListTile.adaptive(
                     title: const Text('上课中延后提醒'),
                     subtitle: const Text('提醒时间正在上课时，改到下课 3 分钟后'),
                     value: settings.delayWhenInClass,
@@ -45,9 +47,13 @@ class NotificationSettingsPage extends ConsumerWidget {
                         : null,
                   ),
                   const Divider(height: 1, indent: 16),
-                  SwitchListTile(
+                  SwitchListTile.adaptive(
                     title: const Text('锁屏显示下一节课'),
-                    subtitle: const Text('上课前 1 小时显示科目、时间、地点和教师'),
+                    subtitle: Text(
+                      isIOSDevice
+                          ? '上课前 1 小时发出静默通知，也可添加锁屏小组件'
+                          : '上课前 1 小时显示科目、时间、地点和教师',
+                    ),
                     value: settings.showNextCourseOnLockScreen,
                     onChanged: settings.enabled
                         ? (value) => _update(
@@ -89,7 +95,7 @@ class NotificationSettingsPage extends ConsumerWidget {
                         : null,
                   ),
                   const Divider(height: 1, indent: 16),
-                  SwitchListTile(
+                  SwitchListTile.adaptive(
                     title: const Text('仅提醒下一节'),
                     subtitle: const Text('未来 7 天只保留时间最近的一条提醒'),
                     value: settings.onlyNextCourse,
@@ -121,8 +127,10 @@ class NotificationSettingsPage extends ConsumerWidget {
                   const Divider(height: 1, indent: 56),
                   ListTile(
                     leading: const Icon(Icons.alarm_on_outlined),
-                    title: const Text('精确闹钟权限'),
-                    subtitle: const Text('保证息屏时也能准点提醒'),
+                    title: Text(isIOSDevice ? '申请通知权限' : '精确闹钟权限'),
+                    subtitle: Text(
+                      isIOSDevice ? '允许提醒；展示和声音受系统设置影响' : '保证息屏时也能准点提醒',
+                    ),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () => ref
                         .read(notificationServiceProvider)
@@ -151,7 +159,7 @@ class NotificationSettingsPage extends ConsumerWidget {
                 ),
               ),
               icon: const Icon(Icons.battery_saver_outlined),
-              label: const Text('查看国产 Android 后台设置'),
+              label: Text(isIOSDevice ? '查看 iOS 提醒与后台设置' : '查看国产 Android 后台设置'),
             ),
             const SizedBox(height: 24),
             Text('联系作者', style: Theme.of(context).textTheme.titleMedium),
@@ -220,9 +228,13 @@ class NotificationSettingsPage extends ConsumerWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const ListTile(
-              title: Text('选择上课提醒方式'),
-              subtitle: Text('锁屏课表通知始终不会发出声音或震动。'),
+            ListTile(
+              title: const Text('选择上课提醒方式'),
+              subtitle: Text(
+                isIOSDevice
+                    ? '锁屏课表通知不请求声音；震动和展示跟随 iOS 设置。'
+                    : '锁屏课表通知始终不会发出声音或震动。',
+              ),
             ),
             for (final mode in ReminderAlertMode.values)
               ListTile(
@@ -312,7 +324,7 @@ class _ReminderStatusCardState extends ConsumerState<_ReminderStatusCard> {
               final value = snapshot.data!;
               return Text(
                 '通知权限：${value.notifications ? '正常' : '未开启'}\n'
-                '精确闹钟：${value.exact ? '正常' : '未开启'}\n'
+                '${isIOSDevice ? '系统定时通知' : '精确闹钟'}：${value.exact ? '正常' : '未开启'}\n'
                 '当前已排程：${value.pending} 条',
               );
             },
@@ -340,8 +352,9 @@ class _ReminderStatusCardState extends ConsumerState<_ReminderStatusCard> {
 
 String _alertModeLabel(ReminderAlertMode mode) => switch (mode) {
   ReminderAlertMode.notificationOnly => '仅通知',
-  ReminderAlertMode.vibration => '通知 + 震动',
-  ReminderAlertMode.soundAndVibration => '通知 + 震动 + 声音',
+  ReminderAlertMode.vibration => isIOSDevice ? '无声通知（震动跟随系统）' : '通知 + 震动',
+  ReminderAlertMode.soundAndVibration =>
+    isIOSDevice ? '通知 + 声音（震动跟随系统）' : '通知 + 震动 + 声音',
 };
 
 class _AdvanceMinutesDialog extends StatefulWidget {

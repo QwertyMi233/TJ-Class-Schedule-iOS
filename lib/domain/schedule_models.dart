@@ -164,14 +164,16 @@ class Term {
   }
 
   /// 学期最后一天，即最后一周的周日。
-  DateTime get lastDay =>
-      firstWeekMonday.add(Duration(days: totalWeeks * 7 - 1));
+  DateTime get lastDay => dateOf(totalWeeks, DateTime.sunday);
 
   /// 第 [week] 周 [weekday] 对应的真实日期。
   ///
   /// 与 [weekOf] 互为逆运算，调休设置界面靠它把「补哪一天的课」显示出来。
-  DateTime dateOf(int week, int weekday) =>
-      firstWeekMonday.add(Duration(days: (week - 1) * 7 + weekday - 1));
+  DateTime dateOf(int week, int weekday) => DateTime(
+    firstWeekMonday.year,
+    firstWeekMonday.month,
+    firstWeekMonday.day + (week - 1) * 7 + weekday - 1,
+  );
 
   /// [date] 落在第几教学周；学期开始前或结束后返回 null。
   ///

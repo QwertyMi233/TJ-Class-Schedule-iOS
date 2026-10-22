@@ -1,8 +1,10 @@
 import 'package:android_intent_plus/android_intent.dart';
-import 'package:flutter/material.dart';
+import '../platform/platform_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 
 import '../application/schedule_controller.dart';
+import '../platform/platform_support.dart';
 
 class MagicOsGuidePage extends ConsumerStatefulWidget {
   const MagicOsGuidePage({super.key, this.showBackButton = false});
@@ -18,6 +20,7 @@ class _MagicOsGuidePageState extends ConsumerState<MagicOsGuidePage> {
 
   @override
   Widget build(BuildContext context) {
+    if (isIOSDevice) return _buildIOSGuide(context);
     return PopScope(
       canPop: widget.showBackButton || _confirmed,
       child: Scaffold(
@@ -104,6 +107,11 @@ class _MagicOsGuidePageState extends ConsumerState<MagicOsGuidePage> {
   }
 
   Future<void> _openApplicationSettings() {
+    if (isIOSDevice) {
+      return const MethodChannel(
+        'offline_course_schedule/platform',
+      ).invokeMethod<void>('appSettings');
+    }
     return const AndroidIntent(
       action: 'android.settings.APPLICATION_DETAILS_SETTINGS',
       data: 'package:com.offlinecourse.offline_course_schedule',
@@ -115,6 +123,65 @@ class _MagicOsGuidePageState extends ConsumerState<MagicOsGuidePage> {
       action: 'android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS',
     ).launch();
   }
+
+  Widget _buildIOSGuide(BuildContext context) => PopScope(
+    canPop: widget.showBackButton || _confirmed,
+    child: Scaffold(
+      appBar: AppBar(
+        automaticallyImplyLeading: widget.showBackButton,
+        title: const Text('iOS 提醒与后台设置'),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          const _GuideStep(
+            number: '1',
+            icon: Icons.notifications_active_outlined,
+            title: '允许通知',
+            lines: [
+              '在系统设置中允许本应用通知，并按需要开启锁定屏幕和声音。',
+              '专注模式、静音和通知摘要可能影响提醒的展示或声音。',
+              'iOS 不提供应用单独控制通知震动的权限。',
+            ],
+          ),
+          const SizedBox(height: 16),
+          const _GuideStep(
+            number: '2',
+            icon: Icons.sync,
+            title: '允许后台 App 刷新',
+            lines: [
+              '在“设置 → 通用 → 后台 App 刷新”中允许本应用。',
+              '同步由 iOS 安排，不能保证每 15 或 30 分钟执行。',
+              '低电量模式、长期不打开或强制退出可能暂停后台同步；打开 App 可再次更新。',
+            ],
+          ),
+          const SizedBox(height: 16),
+          const _GuideStep(
+            number: '3',
+            icon: Icons.widgets_outlined,
+            title: '添加主屏幕或锁屏小组件',
+            lines: [
+              '长按主屏幕，选择“编辑 → 添加小组件”，搜索 TJ Class Schedule。',
+              '可添加“下一节课”和“作业倒计时”，锁屏编辑界面也可添加。',
+              '首次安装后先打开 App 一次；组件更新由系统调度，倒计时使用系统计时显示。',
+              '本地提醒按时间先后保留最近 60 条，打开 App 或后台更新后重新补排。',
+            ],
+          ),
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            onPressed: _openApplicationSettings,
+            icon: const Icon(Icons.settings_outlined),
+            label: const Text('打开本应用系统设置'),
+          ),
+          const SizedBox(height: 20),
+          FilledButton(
+            onPressed: () => _complete(context, ref),
+            child: const Text('我已了解'),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _VendorPaths extends StatelessWidget {

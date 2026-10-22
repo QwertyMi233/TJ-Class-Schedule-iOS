@@ -105,10 +105,7 @@ void main() {
     final fixture = _scheduleFixture();
     final swipeController = _FakeSwipeAdvancesWeekController(false);
     await tester.pumpWidget(
-      _appWith(
-        fixture.data,
-        swipeController: () => swipeController,
-      ),
+      _appWith(fixture.data, swipeController: () => swipeController),
     );
     await tester.pumpAndSettle();
     final container = _containerOf(tester);
@@ -130,10 +127,7 @@ void main() {
     final fixture = _scheduleFixture();
     final swipeController = _FakeSwipeAdvancesWeekController(true);
     await tester.pumpWidget(
-      _appWith(
-        fixture.data,
-        swipeController: () => swipeController,
-      ),
+      _appWith(fixture.data, swipeController: () => swipeController),
     );
     await tester.pumpAndSettle();
     final container = _containerOf(tester);
@@ -143,7 +137,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       container.read(selectedDateProvider),
-      fixture.today.add(const Duration(days: 7)),
+      DateTime(fixture.today.year, fixture.today.month, fixture.today.day + 7),
     );
   });
 
@@ -151,10 +145,7 @@ void main() {
     final fixture = _scheduleFixture();
     final swipeController = _FakeSwipeAdvancesWeekController(false);
     await tester.pumpWidget(
-      _appWith(
-        fixture.data,
-        swipeController: () => swipeController,
-      ),
+      _appWith(fixture.data, swipeController: () => swipeController),
     );
     await tester.pumpAndSettle();
 
@@ -240,7 +231,9 @@ ProviderContainer _rawContainer(ScheduleDatabase database) {
     totalWeeks: 20,
     periodsByWeekday: {
       for (var day = 1; day <= 7; day++)
-        day: [const LessonPeriod(number: 1, startMinutes: 480, endMinutes: 580)],
+        day: [
+          const LessonPeriod(number: 1, startMinutes: 480, endMinutes: 580),
+        ],
     },
   );
   final course = Course(

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import '../platform/platform_ui.dart';
 
 import '../domain/schedule_models.dart';
 
@@ -112,7 +112,7 @@ class _CourseDetailSheet extends StatelessWidget {
                 _Field(
                   '周次',
                   '${focused.weekRule.displayText}'
-                  '（实际 ${weekCount(focused.weekRule, term.totalWeeks)} 周）',
+                      '（实际 ${weekCount(focused.weekRule, term.totalWeeks)} 周）',
                 ),
                 _Field('上课周', weeksText(focused.weekRule, term.totalWeeks)),
                 _Field('时间段起止', clockRangeText(term, focused)),
@@ -121,8 +121,8 @@ class _CourseDetailSheet extends StatelessWidget {
                 _Field(
                   '日期',
                   '${date!.year}年${date!.month}月${date!.day}日'
-                  ' ${weekdayName(date!.weekday)}'
-                  ' · 第 ${term.weekOf(date!) ?? '?'} 周',
+                      ' ${weekdayName(date!.weekday)}'
+                      ' · 第 ${term.weekOf(date!) ?? '?'} 周',
                 ),
               const SizedBox(height: 10),
               Text(

@@ -18,7 +18,7 @@ void taskSyncDispatcher() {
     final db = await ScheduleDatabase.open(singleInstance: false);
     final notifications = NotificationService();
     try {
-      if (task == 'sync-star-activities') {
+      if (task == 'sync-star-activities' || task == iosStarSyncIdentifier) {
         try {
           await syncStarInBackground(db, notifications);
           return true;
@@ -84,15 +84,19 @@ Future<bool> syncTasksInBackground(
 }
 
 Future<void> configureTaskBackgroundSync(bool enabled) async {
-  if (!Platform.isAndroid) return;
+  if (!Platform.isAndroid && !Platform.isIOS) return;
+  final uniqueName = Platform.isIOS
+      ? iosTaskSyncIdentifier
+      : 'task-background-sync';
   if (!enabled) {
-    await Workmanager().cancelByUniqueName('task-background-sync');
+    await Workmanager().cancelByUniqueName(uniqueName);
     return;
   }
   await Workmanager().registerPeriodicTask(
-    'task-background-sync',
+    uniqueName,
     'sync-tasks',
     frequency: const Duration(minutes: 15),
+    initialDelay: const Duration(minutes: 15),
     backoffPolicy: BackoffPolicy.linear,
     backoffPolicyDelay: TaskSyncService.haokeRetryDelay,
     existingWorkPolicy: ExistingPeriodicWorkPolicy.update,
@@ -101,7 +105,7 @@ Future<void> configureTaskBackgroundSync(bool enabled) async {
 }
 
 Future<void> initializeTaskBackgroundSync(ScheduleDatabase db) async {
-  if (!Platform.isAndroid) return;
+  if (!Platform.isAndroid && !Platform.isIOS) return;
   await Workmanager().initialize(taskSyncDispatcher);
   await configureTaskBackgroundSync(
     await db.loadSetting('task_auto_sync') == 'true',
@@ -110,3 +114,6 @@ Future<void> initializeTaskBackgroundSync(ScheduleDatabase db) async {
     await db.loadSetting('star_enabled') == 'true',
   );
 }
+
+// These identifiers also appear in Runner/Info.plist and AppDelegate.swift.
+const iosTaskSyncIdentifier = 'icu.tjschedule.refresh.tasks';

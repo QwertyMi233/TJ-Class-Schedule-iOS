@@ -89,7 +89,7 @@ class NationalHolidayService {
       );
       while (!date.isAfter(end)) {
         holidays[date] = name;
-        date = date.add(const Duration(days: 1));
+        date = DateTime(date.year, date.month, date.day + 1);
       }
     }
     final sortedMakeupDays = makeupDays.toList()..sort();

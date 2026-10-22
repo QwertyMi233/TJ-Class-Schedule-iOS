@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/cupertino.dart';
+import '../platform/platform_support.dart';
 
 class AppTheme {
   /// [seedColor] 只影响 `ColorScheme.fromSeed` 的主色，背景色、卡片色与文字色
@@ -43,14 +45,33 @@ class AppTheme {
                   ? Brightness.dark
                   : Brightness.light,
             );
+    final ios = isIOSDevice;
     return ThemeData(
       useMaterial3: true,
       brightness: brightness,
-      colorScheme: scheme,
-      scaffoldBackgroundColor: background,
-      textTheme: ThemeData(
+      fontFamily: ios ? '.SF Pro Text' : null,
+      cupertinoOverrideTheme: CupertinoThemeData(
         brightness: brightness,
-      ).textTheme.apply(bodyColor: text, displayColor: text),
+        primaryColor: CupertinoColors.systemBlue,
+        scaffoldBackgroundColor: brightness == Brightness.light
+            ? const Color(0xFFF2F2F7)
+            : Colors.black,
+      ),
+      colorScheme: scheme,
+      scaffoldBackgroundColor: ios
+          ? (brightness == Brightness.light
+                ? const Color(0xFFF2F2F7)
+                : Colors.black)
+          : background,
+      splashFactory: ios ? NoSplash.splashFactory : null,
+      highlightColor: ios ? Colors.transparent : null,
+      textTheme: ThemeData(brightness: brightness).textTheme.apply(
+        fontFamily: ios
+            ? const CupertinoThemeData().textTheme.textStyle.fontFamily
+            : null,
+        bodyColor: text,
+        displayColor: text,
+      ),
       cardTheme: CardThemeData(
         color: surface,
         elevation: 0,

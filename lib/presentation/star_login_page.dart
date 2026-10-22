@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import '../platform/platform_ui.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../import/star_login_capture.dart';

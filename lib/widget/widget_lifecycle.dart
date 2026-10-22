@@ -21,6 +21,9 @@ class _WidgetLifecycleState extends ConsumerState<WidgetLifecycle>
     with WidgetsBindingObserver {
   bool _syncingTasks = false;
   bool _tasksChanged = false;
+  bool _syncingCourses = false;
+  bool _coursesChanged = false;
+  DateTime? _snapshotDay;
 
   @override
   void initState() {
@@ -59,24 +62,46 @@ class _WidgetLifecycleState extends ConsumerState<WidgetLifecycle>
       unawaited(_syncCourses());
       unawaited(_syncTasks());
     });
+    ref.listen(clockProvider, (_, value) {
+      final now = value.valueOrNull;
+      if (now == null) return;
+      final day = DateTime(now.year, now.month, now.day);
+      if (_snapshotDay != day) {
+        _snapshotDay = day;
+        unawaited(_syncCourses());
+        unawaited(_syncTasks());
+      }
+    });
     return widget.child;
   }
 
   Future<void> _syncCourses() async {
     if (!mounted) return;
+    if (_syncingCourses) {
+      _coursesChanged = true;
+      return;
+    }
     final schedule = ref.read(scheduleControllerProvider).valueOrNull;
     if (schedule == null) return;
     final color = ref.read(widgetColorProvider);
     final refresh = ref.read(widgetRefreshModeProvider);
+    _syncingCourses = true;
     try {
       await const NextCourseWidgetService().sync(
         schedule,
+        now: ref.read(clockProvider).valueOrNull,
         colorValue: color.valueOrNull,
         refreshMode: refresh.valueOrNull,
         updateAppearance: color.hasValue && refresh.hasValue,
       );
     } catch (error) {
       if (kDebugMode) debugPrint('课表小组件更新失败：$error');
+    } finally {
+      _syncingCourses = false;
+      if (_coursesChanged && mounted) {
+        _coursesChanged = false;
+        unawaited(_syncCourses());
+      }
     }
   }
 

@@ -9,21 +9,27 @@ import 'schedule_controller.dart';
 import 'star_sync_service.dart';
 
 Future<void> configureStarBackgroundSync(bool enabled) async {
-  if (!Platform.isAndroid) return;
+  if (!Platform.isAndroid && !Platform.isIOS) return;
+  final uniqueName = Platform.isIOS
+      ? iosStarSyncIdentifier
+      : 'star-background-sync';
   if (!enabled) {
-    await Workmanager().cancelByUniqueName('star-background-sync');
+    await Workmanager().cancelByUniqueName(uniqueName);
     return;
   }
   await Workmanager().registerPeriodicTask(
-    'star-background-sync',
+    uniqueName,
     'sync-star-activities',
     frequency: const Duration(minutes: 15),
+    initialDelay: const Duration(minutes: 15),
     backoffPolicy: BackoffPolicy.linear,
     backoffPolicyDelay: const Duration(minutes: 5),
     existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
     constraints: Constraints(networkType: NetworkType.connected),
   );
 }
+
+const iosStarSyncIdentifier = 'icu.tjschedule.refresh.star';
 
 Future<void> syncStarInBackground(
   ScheduleDatabase db,

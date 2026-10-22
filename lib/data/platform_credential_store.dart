@@ -7,7 +7,11 @@ import 'schedule_database.dart';
 class PlatformCredentialStore {
   const PlatformCredentialStore(
     this.database, [
-    this.storage = const FlutterSecureStorage(),
+    this.storage = const FlutterSecureStorage(
+      iOptions: IOSOptions(
+        accessibility: KeychainAccessibility.first_unlock_this_device,
+      ),
+    ),
   ]);
 
   final ScheduleDatabase database;

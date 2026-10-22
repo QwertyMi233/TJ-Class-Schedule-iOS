@@ -1,0 +1,59 @@
+name: iOS 编译与验证
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  CI: 'true'
+  BOT: 'true'
+  FLUTTER_SUPPRESS_ANALYTICS: 'true'
+
+jobs:
+  ios:
+    name: iOS 27 编译、原生测试和未签名 IPA
+    runs-on: xcode-27
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: 选择 Xcode 27.1 或更新版本
+        run: python3 scripts/select_xcode.py
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.7'
+          channel: stable
+          cache: true
+      - name: 检查与构建设备安装包
+        run: bash scripts/build_ios.sh
+      - name: 保存界面布局检查图
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: iOS-toolbar-layout-previews
+          path: artifacts/ios-toolbar/
+          if-no-files-found: ignore
+      - name: 保存未签名 IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: TJ-Class-Schedule-iOS-unsigned
+          path: dist/TJ-Class-Schedule-iOS-unsigned.ipa
+          if-no-files-found: error
+      - name: 使用稳定 Xcode 27 运行 iOS 27.0 模拟器
+        run: sudo xcode-select --switch /Applications/Xcode_27.app/Contents/Developer
+      - name: 编译模拟器版本
+        run: flutter build ios --simulator --debug --no-pub
+      - name: 在 iOS 27 iPhone 和 iPad 模拟器上运行原生测试
+        timeout-minutes: 20
+        run: python3 scripts/test_ios_simulators.py
+      - name: 保存原生测试结果
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: iOS-native-test-results
+          path: dist/ios-tests/
+          if-no-files-found: ignore
