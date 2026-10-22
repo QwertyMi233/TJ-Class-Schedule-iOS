@@ -151,6 +151,7 @@ Map<String, Object?>? _navigationAction(
       'id': id,
       'title': widget.tooltip ?? '更多',
       'symbol': 'ellipsis',
+      'enabled': widget.enabled,
       'menu': widget.menu(context, id, callbacks),
     };
   }

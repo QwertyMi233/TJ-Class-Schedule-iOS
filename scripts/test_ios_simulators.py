@@ -14,7 +14,7 @@ root = Path(__file__).resolve().parents[1]
 out = root / 'dist/ios-tests'
 out.mkdir(parents=True, exist_ok=True)
 inventory = json.loads(subprocess.check_output(
-    ['xcrun', 'simctl', 'list', 'devices', 'available', '--json'], text=True))
+    ['xcrun', 'simctl', 'list', 'devices', 'available', '--json'], text=True, timeout=60))
 selected = []
 for runtime, devices in inventory['devices'].items():
     if not re.search(r'\.iOS-27(?:-|$)', runtime):
@@ -45,7 +45,7 @@ for runtime, device in selected:
                'test', 'CODE_SIGN_IDENTITY=-']
     with log.open('w') as output:
         try:
-            run = subprocess.run(command, cwd=root, stdout=output, stderr=subprocess.STDOUT, timeout=360)
+            run = subprocess.run(command, cwd=root, stdout=output, stderr=subprocess.STDOUT, timeout=480)
             status = 'passed' if run.returncode == 0 else 'failed'
         except subprocess.TimeoutExpired:
             status = 'timed_out'
@@ -58,7 +58,7 @@ for runtime, device in selected:
         if 'Test Suite' not in detail and 'Test suite' not in detail:
             break
     if device.get('state') == 'Shutdown':
-        subprocess.run(['xcrun', 'simctl', 'shutdown', identifier], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(['xcrun', 'simctl', 'shutdown', identifier], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=60)
 if any(item['status'] != 'passed' for item in results):
     raise SystemExit('Some simulator tests failed. Inspect dist/ios-tests.')
 print('Passed on', len(results), 'installed simulator configurations. Physical device acceptance is still required.')

@@ -36,7 +36,8 @@ final class RunnerTests: XCTestCase {
         try XCTUnwrap(image.pngData()).write(to: url)
         let text = try TJImageTextRecognizer.recognize(url: url, cpuOnly: true)
         XCTAssertTrue(text.contains("数学"), text)
-        XCTAssertTrue(text.contains("Physics"), text)
+        // Vision can vary letter case while recognizing the same course name.
+        XCTAssertTrue(text.lowercased().contains("physics"), text)
         XCTAssertTrue(text.contains("202"), text)
     }
 

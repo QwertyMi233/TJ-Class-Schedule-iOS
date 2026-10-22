@@ -1,7 +1,7 @@
 name: offline_course_schedule
 description: 完全离线的个人课程表（当前阶段：数据、导入与周次判定）
 publish_to: none
-version: 0.3.2+16
+version: 0.3.2+17
 
 environment:
   sdk: ">=3.10.0 <4.0.0"

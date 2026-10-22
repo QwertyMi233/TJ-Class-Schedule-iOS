@@ -41,6 +41,7 @@ jobs:
       - name: 编译模拟器版本
         run: flutter build ios --simulator --debug --no-pub
       - name: 在 iOS 27 iPhone 和 iPad 模拟器上运行原生测试
+        timeout-minutes: 20
         run: python3 scripts/test_ios_simulators.py
       - name: 保存原生测试结果
         if: always()
