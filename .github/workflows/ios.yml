@@ -36,9 +36,11 @@ jobs:
           name: TJ-Class-Schedule-iOS-unsigned
           path: dist/TJ-Class-Schedule-iOS-unsigned.ipa
           if-no-files-found: error
+      - name: 使用稳定 Xcode 27 运行 iOS 27.0 模拟器
+        run: sudo xcode-select --switch /Applications/Xcode_27.app/Contents/Developer
       - name: 编译模拟器版本
         run: flutter build ios --simulator --debug --no-pub
-      - name: 在可用的 iOS 27 模拟器上运行原生测试
+      - name: 在 iOS 27 iPhone 和 iPad 模拟器上运行原生测试
         run: python3 scripts/test_ios_simulators.py
       - name: 保存原生测试结果
         if: always()

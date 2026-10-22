@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import '../platform/platform_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
@@ -187,7 +187,7 @@ class _CanvasSessionPageState extends ConsumerState<CanvasSessionPage> {
                     _consent = false;
                   }),
           ),
-        CheckboxListTile(
+        CheckboxListTile.adaptive(
           contentPadding: EdgeInsets.zero,
           title: const Text('同意重新生成所选令牌并开启作业自动同步'),
           subtitle: const Text('重新生成后，所选令牌的旧值会失效。新值加密保存在本机，仅用于读取本人课程和作业。'),

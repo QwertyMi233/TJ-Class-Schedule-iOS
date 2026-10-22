@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+import '../platform/platform_ui.dart';
+import '../platform/platform_support.dart';
+import 'widget_status_page.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../application/schedule_controller.dart';
@@ -276,7 +278,14 @@ class _ScheduleHome extends ConsumerWidget {
                   ),
                   PopupMenuButton<String>(
                     onSelected: (value) {
-                      if (value == 'term') {
+                      if (value == 'widgets') {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute<void>(
+                            builder: (_) => const WidgetStatusPage(),
+                          ),
+                        );
+                      } else if (value == 'term') {
                         Navigator.push(
                           context,
                           MaterialPageRoute<void>(
@@ -327,6 +336,11 @@ class _ScheduleHome extends ConsumerWidget {
                       }
                     },
                     itemBuilder: (_) => [
+                      if (isIOSDevice)
+                        const PopupMenuItem(
+                          value: 'widgets',
+                          child: Text('小组件同步'),
+                        ),
                       const PopupMenuItem(
                         value: 'star',
                         child: Text('卓越星活动同步'),

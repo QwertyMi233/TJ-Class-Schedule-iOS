@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import '../platform/platform_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -18,7 +18,8 @@ class NotificationSettingsPage extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('提醒设置')),
       body: asyncSettings.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () =>
+            const Center(child: CircularProgressIndicator.adaptive()),
         error: (_, __) => const Center(child: Text('设置加载失败')),
         data: (settings) => ListView(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
@@ -26,7 +27,7 @@ class NotificationSettingsPage extends ConsumerWidget {
             Card(
               child: Column(
                 children: [
-                  SwitchListTile(
+                  SwitchListTile.adaptive(
                     title: const Text('上课提醒'),
                     subtitle: const Text('关闭后会取消所有待发送提醒'),
                     value: settings.enabled,
@@ -34,7 +35,7 @@ class NotificationSettingsPage extends ConsumerWidget {
                         _update(ref, settings.copyWith(enabled: value)),
                   ),
                   const Divider(height: 1, indent: 16),
-                  SwitchListTile(
+                  SwitchListTile.adaptive(
                     title: const Text('上课中延后提醒'),
                     subtitle: const Text('提醒时间正在上课时，改到下课 3 分钟后'),
                     value: settings.delayWhenInClass,
@@ -46,7 +47,7 @@ class NotificationSettingsPage extends ConsumerWidget {
                         : null,
                   ),
                   const Divider(height: 1, indent: 16),
-                  SwitchListTile(
+                  SwitchListTile.adaptive(
                     title: const Text('锁屏显示下一节课'),
                     subtitle: Text(
                       isIOSDevice
@@ -94,7 +95,7 @@ class NotificationSettingsPage extends ConsumerWidget {
                         : null,
                   ),
                   const Divider(height: 1, indent: 16),
-                  SwitchListTile(
+                  SwitchListTile.adaptive(
                     title: const Text('仅提醒下一节'),
                     subtitle: const Text('未来 7 天只保留时间最近的一条提醒'),
                     value: settings.onlyNextCourse,

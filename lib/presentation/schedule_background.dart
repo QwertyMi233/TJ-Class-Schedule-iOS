@@ -3,7 +3,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
-import 'package:flutter/material.dart';
+import '../platform/platform_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../application/schedule_controller.dart';
 

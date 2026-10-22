@@ -2,7 +2,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import 'package:flutter/material.dart';
+import '../platform/platform_ui.dart';
 import 'schedule_background.dart';
 
 /// 在屏幕比例的取景框内裁剪背景，可预览主题遮罩和卡片透明度。
@@ -117,7 +117,7 @@ class _BackgroundCropPageState extends State<BackgroundCropPage> {
       body: _error != null
           ? Center(child: Text(_error!))
           : image == null
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator.adaptive())
           : LayoutBuilder(
               builder: (context, constraints) {
                 return Column(

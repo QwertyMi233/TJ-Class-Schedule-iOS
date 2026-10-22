@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/material.dart';
+import '../platform/platform_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../application/schedule_controller.dart';
@@ -83,7 +83,7 @@ class _ImportPreviewPageState extends ConsumerState<ImportPreviewPage> {
               icon: _reading
                   ? const SizedBox.square(
                       dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      child: CircularProgressIndicator.adaptive(strokeWidth: 2),
                     )
                   : const Icon(Icons.file_open_outlined),
               label: Text(_reading ? '正在读取' : '选择文件'),

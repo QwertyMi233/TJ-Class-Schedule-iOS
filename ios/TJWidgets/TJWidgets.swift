@@ -58,7 +58,7 @@ private struct WidgetPalette {
         if urgent {
             background = Color(red: 1, green: 0.90, blue: 0.89)
             foreground = .black
-        } else if let number = WidgetData.defaults?.object(forKey: "widget_color") as? NSNumber {
+        } else if let number = WidgetData.color {
             let raw = number.uint32Value
             let r = Double((raw >> 16) & 255) / 255
             let g = Double((raw >> 8) & 255) / 255
@@ -134,7 +134,7 @@ struct CourseWidgetView: View {
                             }
                         }
                     } else {
-                        Text(entry.updated == nil ? "请先打开 App 同步课表" : "暂无后续课程").font(.headline)
+                        Text(entry.updated == nil ? WidgetData.setupMessage : "暂无后续课程").font(.headline)
                         Text("打开 App 查看或更新安排").font(.caption)
                         Spacer(minLength: 0)
                     }
@@ -170,14 +170,14 @@ struct TaskWidgetView: View {
                 }
             case .accessoryRectangular:
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(entry.next?.title ?? "暂无待截止作业").font(.headline).lineLimit(1)
+                    Text(entry.next?.title ?? (entry.updated == nil ? WidgetData.setupMessage : "暂无待截止作业")).font(.headline).lineLimit(1)
                     if let item = entry.next { Countdown(target: item.due, now: entry.date).font(.caption) }
                     Text("已逾期 \(entry.overdue) 项").font(.caption2)
                 }
             default:
                 VStack(alignment: .leading, spacing: 5) {
                     Label("作业倒计时", systemImage: "checklist").font(.caption).opacity(0.75)
-                    Text(entry.next?.title ?? "暂无待截止作业").font(.headline).lineLimit(2)
+                    Text(entry.next?.title ?? (entry.updated == nil ? WidgetData.setupMessage : "暂无待截止作业")).font(.headline).lineLimit(2)
                     if let item = entry.next {
                         Text(item.course).font(.caption).lineLimit(1)
                         Text("截止 \(item.due, format: .dateTime.month().day().hour().minute())").font(.caption2).lineLimit(1)

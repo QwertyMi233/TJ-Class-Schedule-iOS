@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/material.dart';
+import '../platform/platform_ui.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../import/tongji_timetable_import.dart';
@@ -104,7 +104,7 @@ class _TongjiTimetablePageState extends State<TongjiTimetablePage> {
           icon: _reading
               ? const SizedBox.square(
                   dimension: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                  child: CircularProgressIndicator.adaptive(strokeWidth: 2),
                 )
               : const Icon(Icons.table_view_rounded),
           label: Text(_reading ? '正在读取' : '读取当前课表'),

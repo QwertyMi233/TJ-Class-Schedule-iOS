@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
+import '../../platform/platform_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'domain.dart';
@@ -154,7 +154,9 @@ class LocationHomePage extends ConsumerWidget {
                 Expanded(
                   child: places.when(
                     loading: () => const Center(
-                      child: CircularProgressIndicator(color: accent),
+                      child: CircularProgressIndicator.adaptive(
+                        valueColor: AlwaysStoppedAnimation(accent),
+                      ),
                     ),
                     error: (_, _) => Center(
                       child: Column(

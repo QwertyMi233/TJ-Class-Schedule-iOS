@@ -22,6 +22,8 @@
 		7291F9201F104FFCC555B48B /* WidgetData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82B26FDA3B13D36A5915710A /* widgetData */; };
 		5E8A018063621D230C070F3A /* TJNotificationQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3C0F652CDD13E10178776D8 /* queueTestSource */; };
 		F295B0AB514896AE59390302 /* TJWidgets.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 8F77772766FE1A24BC76E3F2 /* TJWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		4B3D39FCB560E6305C765B55 /* TJWidgetStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A902BE39FAB7A5FB1E4ABEBB; };
+		FF980D410D059FB35D8B968F /* TJWidgetStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A902BE39FAB7A5FB1E4ABEBB; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -77,6 +79,7 @@
 		1024B69089D20AA41F32B657 /* Widgets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = "Widgets.xcconfig"; sourceTree = "<group>"; };
 		C3C0F652CDD13E10178776D8 /* TJNotificationQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../packages/tj_ios_bridge/ios/Classes/TJNotificationQueue.swift"; sourceTree = "SOURCE_ROOT"; };
 		8F77772766FE1A24BC76E3F2 /* TJWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = TJWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		A902BE39FAB7A5FB1E4ABEBB /* TJWidgetStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../packages/tj_ios_bridge/ios/Classes/TJWidgetStore.swift"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -304,6 +307,7 @@
 			files = (
 				5E8A018063621D230C070F3A /* queueTestBuild */,
 				7291F9201F104FFCC555B48B /* widgetDataTestBuild */,
+				FF980D410D059FB35D8B968F,
 				331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -318,7 +322,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		3244CDD4BE697F647F546381 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (9BD768C5C9A570860A72D1B9 /* widgetSwiftBuild */, BD633A5532AC496AF63CD8D5 /* widgetDataBuild */, ); runOnlyForDeploymentPostprocessing = 0; };
+		3244CDD4BE697F647F546381 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (4B3D39FCB560E6305C765B55, 9BD768C5C9A570860A72D1B9 /* widgetSwiftBuild */, BD633A5532AC496AF63CD8D5 /* widgetDataBuild */, ); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */

@@ -1,8 +1,8 @@
 # TJ Class Schedule：iOS 移植、构建与安装
 
-基于你提供的 0.3.1+13 源码制作；本工程版本为 **0.3.1+14**。
+基于你提供的 0.3.1+13 源码制作；本工程版本为 **0.3.2+16**。
 
-已通过 GitHub 的 Xcode 27.1 构建设备版及未签名 IPA。当前 0.3.1+15 将 iOS OCR 改为 Apple Vision，正在重新验证；**尚未完成真机或全机型验收**。
+已通过 GitHub 的 Xcode 27.1 构建设备版及未签名 IPA。0.3.2+16 增加原生 UIKit 液态玻璃控件、系统字体与共享快照诊断，正在验证；**尚未完成真机或全机型验收**。
 
 ## 工程中已添加什么
 
@@ -78,7 +78,7 @@ App Groups 等能力取决于开发者账户与签名配置。如果所用签名
 
 1. 将解压后的工程内容放入自己的 GitHub 仓库根目录，保留 `.github`、`ios`、`packages` 等文件夹。
 2. 在 Actions 中选择“iOS 编译与验证”，点击 Run workflow。
-3. 流程使用 `xcode-27` 托管构建机并选取已安装的 Xcode 27.1+，执行检查、编译设备包及模拟器版本，再在该构建机上所有可用的 iOS 27 iPhone/iPad 模拟器运行原生测试。
+3. 流程使用 `xcode-27` 托管构建机并选取已安装的 Xcode 27.1+，执行检查、编译设备包及模拟器版本，再在该构建机上一个 iOS 27 iPhone 和一个 iPad 模拟器（设置 `IOS_TEST_ALL=1` 可检查所有已安装机型）运行原生测试。
 4. 流程成功后下载 `TJ-Class-Schedule-iOS-unsigned` 构建产物。
 
 如果托管构建机尚未安装所需 Xcode 或 iOS 27 模拟器，流程会明确失败，需更新构建环境或使用自己的 Mac。没有将“工作流已写好”当作“工作流已经成功执行”。本项目的移植代码和构建记录见 [PR #1](https://github.com/QwertyMi233/TJ-Class-Schedule-iOS/pull/1)。
@@ -116,3 +116,18 @@ python3 scripts/test_ios_simulators.py
 - [Workmanager：iOS 设置](https://docs.page/fluttercommunity/flutter_workmanager/quickstart)
 - [通知插件：iOS 容量及配置限制](https://pub.dev/packages/flutter_local_notifications)
 - [Apple Vision：图片文字识别](https://developer.apple.com/documentation/vision/recognizing-text-in-images)
+
+
+## 0.3.2 的 iOS 界面与小组件修复
+
+- 导航栏、菜单、底部胶囊操作使用真实 UIKit 控件。iOS 26+ 的按钮采用系统 `glass()`，由系统处理深浅色、交互与降低透明度；不在内容卡片上堆叠玻璃。
+- 表单、日期/时间选择、确认弹窗和分段切换使用 Cupertino。iOS 正文采用 Cupertino 系统字体来源，中文由系统回退到相应字体，并跟随系统文字大小。
+- 课程与作业分别写入 App Group 内的原子 JSON 快照，组件每次读取文件，避免进程间偏好设置缓存；旧版偏好数据保留作迁移回退。外观更新同时重载两个组件。
+- 如果签名工具改了共享组名称，只使用主应用和扩展描述文件共同授权、且 iOS 允许访问的容器。不能通过代码补发签名权限。
+
+如果仍显示“打开 App 后更新课表”：
+
+1. 打开 App 右上角菜单 → **小组件同步** → **立即同步课表与作业**，查看数据条数和写入时间。
+2. 若显示“共享权限未授权”，重新签名时同时保留主应用和 `TJWidgets.appex`，给两者配置同一个有效 App Group。证书和描述文件也必须授权该组；仅修改 Info.plist 或重新打开 App 无效。
+3. 若共享连接、写入时间和条数均正常，先等待系统刷新；必要时移除桌面上的小组件并重新添加。不要为此删除应用或课表数据。
+4. 小组件内容更新和后台同步由 iOS 调度，不能承诺固定秒级刷新。倒计时文本则由系统绘制。

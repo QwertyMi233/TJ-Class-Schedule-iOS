@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import '../platform/platform_ui.dart';
 import '../platform/platform_support.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'task_browser_page.dart';
@@ -285,7 +285,7 @@ class _TaskConnectionsPageState extends ConsumerState<TaskConnectionsPage>
         future: _status,
         builder: (context, snapshot) {
           if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(child: CircularProgressIndicator.adaptive());
           }
           final values = snapshot.data!;
           return ListView(
@@ -293,7 +293,7 @@ class _TaskConnectionsPageState extends ConsumerState<TaskConnectionsPage>
             children: [
               const Text('连接仅保存在本机，离线也能查看已同步作业。'),
               const SizedBox(height: 12),
-              SwitchListTile(
+              SwitchListTile.adaptive(
                 secondary: IconButton(
                   tooltip: '后台运行设置',
                   onPressed: _busy

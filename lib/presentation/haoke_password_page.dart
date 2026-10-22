@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import '../platform/platform_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../application/schedule_controller.dart';
@@ -126,7 +126,7 @@ class _HaokePasswordPageState extends ConsumerState<HaokePasswordPage> {
           onSubmitted: (_) => _save(),
           decoration: const InputDecoration(labelText: '密码'),
         ),
-        CheckboxListTile(
+        CheckboxListTile.adaptive(
           contentPadding: EdgeInsets.zero,
           title: const Text('加密保存到本机，用于自动同步'),
           value: _consent,

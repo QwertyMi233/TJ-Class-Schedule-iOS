@@ -38,6 +38,7 @@ public final class TJIosBridgePlugin: NSObject, FlutterPlugin {
     }
 
     public static func register(with registrar: FlutterPluginRegistrar) {
+        registrar.register(TJNativeUIFactory(messenger: registrar.messenger()), withId: "offline_course_schedule/native_ui")
         let instance = TJIosBridgePlugin(messenger: registrar.messenger())
         registrar.addMethodCallDelegate(instance, channel: instance.widgets)
         registrar.publish(instance)
@@ -52,17 +53,27 @@ public final class TJIosBridgePlugin: NSObject, FlutterPlugin {
             result(value)
             return
         }
+        if call.method == "widgetStatus" || call.method == "reloadWidgets" {
+            if call.method == "reloadWidgets" { WidgetCenter.shared.reloadAllTimelines() }
+            let status = TJWidgetStore.diagnostics()
+            WidgetCenter.shared.getCurrentConfigurations { configurations in
+                var value = status
+                value["installedKinds"] = (try? configurations.get().map(\.kind)) ?? []
+                DispatchQueue.main.async { result(value) }
+            }
+            return
+        }
         guard ["update", "updateTasks"].contains(call.method) else {
             result(FlutterMethodNotImplemented); return
         }
-        guard let group = Bundle.main.object(forInfoDictionaryKey: "TJAppGroup") as? String,
-              FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: group) != nil,
+        guard let group = TJWidgetStore.group,
               let defaults = UserDefaults(suiteName: group) else {
-            result(FlutterError(code: "app_group_unavailable", message: "App and widget must use the same signed App Group", details: nil)); return
+            result(FlutterError(code: "app_group_unavailable", message: "签名未授权应用和小组件共用的 App Group，请检查主应用和 TJWidgets 扩展的描述文件。", details: TJWidgetStore.diagnostics())); return
         }
         do {
             let key = call.method == "update" ? "schedule_widget_courses" : "task_widget_tasks"
             let rows = args[call.method == "update" ? "courses" : "tasks"] as? [[String: Any]] ?? []
+            try TJWidgetStore.write(key, rows: rows, color: args["color"], updateColor: args.keys.contains("color"))
             let data = try JSONSerialization.data(withJSONObject: rows)
             defaults.set(data, forKey: key)
             defaults.set(Date().timeIntervalSince1970, forKey: key + "_updated")
@@ -72,7 +83,9 @@ public final class TJIosBridgePlugin: NSObject, FlutterPlugin {
             }
             // Data is shared across app/extension and across Flutter engines.
             defaults.synchronize()
-            WidgetCenter.shared.reloadTimelines(ofKind: call.method == "update" ? "NextCourseWidget" : "TaskDeadlineWidget")
+            // Appearance belongs to both widgets. Reload both after writing it.
+            if args.keys.contains("color") { WidgetCenter.shared.reloadAllTimelines() }
+            else { WidgetCenter.shared.reloadTimelines(ofKind: call.method == "update" ? "NextCourseWidget" : "TaskDeadlineWidget") }
             result(nil)
         } catch {
             result(FlutterError(code: "widget_write_failed", message: "Unable to update widget data", details: nil))

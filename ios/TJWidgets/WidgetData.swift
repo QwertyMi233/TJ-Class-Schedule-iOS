@@ -26,18 +26,32 @@ struct TaskItem: Decodable {
 
 enum WidgetData {
     static var defaults: UserDefaults? {
-        guard let group = Bundle.main.object(forInfoDictionaryKey: "TJAppGroup") as? String else { return nil }
+        guard let group = TJWidgetStore.group else { return nil }
         return UserDefaults(suiteName: group)
     }
 
     static func load<T: Decodable>(_ key: String) -> [T] {
+        if let snapshot = TJWidgetStore.snapshot(key), let rows = snapshot["items"],
+           let data = try? JSONSerialization.data(withJSONObject: rows) {
+            return (try? JSONDecoder().decode([T].self, from: data)) ?? []
+        }
         guard let data = defaults?.data(forKey: key) else { return [] }
         return (try? JSONDecoder().decode([T].self, from: data)) ?? []
     }
 
     static func updated(_ key: String) -> Date? {
+        if let value = TJWidgetStore.snapshot(key)?["updated"] as? Double { return Date(timeIntervalSince1970: value) }
         let seconds = defaults?.double(forKey: key + "_updated") ?? 0
         return seconds > 0 ? Date(timeIntervalSince1970: seconds) : nil
+    }
+
+    static var setupMessage: String {
+        TJWidgetStore.directory == nil ? "签名未启用小组件共享，请在 App 检查" : "请打开 App 同步课表与作业"
+    }
+
+    static var color: NSNumber? {
+        if let appearance = TJWidgetStore.snapshot("appearance") { return appearance["color"] as? NSNumber }
+        return defaults?.object(forKey: "widget_color") as? NSNumber
     }
 
     static func nextCourse(_ items: [CourseItem], at date: Date) -> CourseItem? {

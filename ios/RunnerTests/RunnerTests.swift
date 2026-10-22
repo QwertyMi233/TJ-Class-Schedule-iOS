@@ -4,6 +4,24 @@ import UIKit
 @testable import tj_text_recognition
 
 final class RunnerTests: XCTestCase {
+    func testWidgetSnapshotReadsLatestAtomicWriteAndKeepsScopesSeparate() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try TJWidgetStore.writeSnapshot("courses", rows: [["name": "旧课程"]], directory: directory)
+        try TJWidgetStore.writeSnapshot("tasks", rows: [["title": "作业"]], directory: directory)
+        try TJWidgetStore.writeSnapshot("courses", rows: [["name": "最新课程"]], directory: directory)
+        let courses = TJWidgetStore.readSnapshot("courses", directory: directory)?["items"] as? [[String: String]]
+        let tasks = TJWidgetStore.readSnapshot("tasks", directory: directory)?["items"] as? [[String: String]]
+        XCTAssertEqual(courses?.first?["name"], "最新课程")
+        XCTAssertEqual(tasks?.first?["title"], "作业")
+        XCTAssertNotNil(TJWidgetStore.readSnapshot("courses", directory: directory)?["updated"])
+    }
+
+    func testMissingWidgetSnapshotDoesNotInventData() {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        XCTAssertNil(TJWidgetStore.readSnapshot("courses", directory: directory))
+    }
+
     func testVisionReadsChineseAndEnglishScreenshot() throws {
         let renderer = UIGraphicsImageRenderer(size: CGSize(width: 600, height: 180))
         let image = renderer.image { context in

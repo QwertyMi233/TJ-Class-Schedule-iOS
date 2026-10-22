@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import '../platform/platform_ui.dart';
 import '../platform/platform_support.dart';
 
 class TaskGuidePage extends StatelessWidget {

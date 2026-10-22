@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import '../platform/platform_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../application/task_state.dart';
@@ -73,12 +73,12 @@ class _TaskReminderSettingsPageState
           ? Center(
               child: value.hasError
                   ? const Text('读取设置失败，请重新进入')
-                  : const CircularProgressIndicator(),
+                  : const CircularProgressIndicator.adaptive(),
             )
           : ListView(
               padding: const EdgeInsets.all(20),
               children: [
-                SwitchListTile(
+                SwitchListTile.adaptive(
                   contentPadding: EdgeInsets.zero,
                   title: const Text('开启作业截止通知'),
                   value: _enabled!,

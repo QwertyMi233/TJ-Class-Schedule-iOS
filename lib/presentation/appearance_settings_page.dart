@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'package:flutter/material.dart';
+import '../platform/platform_ui.dart';
 import '../platform/platform_support.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -473,7 +473,7 @@ class _OpacitySlider extends StatelessWidget {
             subtitle,
             style: theme.textTheme.bodySmall?.copyWith(color: textColor),
           ),
-          Slider(
+          Slider.adaptive(
             value: value.clamp(min, max),
             min: min,
             max: max,
@@ -645,7 +645,7 @@ class _HslColorDialogState extends State<_HslColorDialog> {
       children: [
         SizedBox(width: 48, child: Text(label)),
         Expanded(
-          child: Slider(
+          child: Slider.adaptive(
             value: value,
             min: min,
             max: max,

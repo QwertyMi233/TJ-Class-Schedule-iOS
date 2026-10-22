@@ -5,6 +5,7 @@ The installed simulator set is recorded in a report; it is not proof that every
 physical device supported by Apple has been tested.
 """
 import json
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -23,6 +24,12 @@ for runtime, devices in inventory['devices'].items():
             selected.append((runtime, device))
 if not selected:
     raise SystemExit('No iOS 27 iPhone/iPad simulator is installed. Install an iOS 27 runtime in Xcode Settings → Platforms.')
+# Use existing booted devices rather than XCTest clones; the hosted iOS 27
+# runtime's Instruments service can fail to bless a freshly cloned simulator.
+if os.environ.get('IOS_TEST_ALL') != '1':
+    phones = [x for x in selected if x[1]['name'].startswith('iPhone')]
+    tablets = [x for x in selected if x[1]['name'].startswith('iPad')]
+    selected = phones[:1] + tablets[:1]
 results = []
 for runtime, device in selected:
     print('Testing', device['name'], runtime, flush=True)
@@ -34,10 +41,11 @@ for runtime, device in selected:
     command = ['xcodebuild', '-workspace', 'ios/Runner.xcworkspace', '-scheme', 'Runner',
                '-configuration', 'Debug', '-sdk', 'iphonesimulator',
                '-destination', 'id=' + identifier, '-resultBundlePath', str(result_bundle),
+               '-parallel-testing-enabled', 'NO', '-maximum-concurrent-test-simulator-destinations', '1',
                'test', 'CODE_SIGN_IDENTITY=-']
     with log.open('w') as output:
         try:
-            run = subprocess.run(command, cwd=root, stdout=output, stderr=subprocess.STDOUT, timeout=900)
+            run = subprocess.run(command, cwd=root, stdout=output, stderr=subprocess.STDOUT, timeout=360)
             status = 'passed' if run.returncode == 0 else 'failed'
         except subprocess.TimeoutExpired:
             status = 'timed_out'

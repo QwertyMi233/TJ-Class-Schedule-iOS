@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/material.dart';
+import '../platform/platform_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -188,7 +188,7 @@ class _CaptureReviewPageState extends ConsumerState<_CaptureReviewPage> {
               padding: const EdgeInsets.all(12),
               child: Column(
                 children: [
-                  CheckboxListTile(
+                  CheckboxListTile.adaptive(
                     value: widget.rows[index]['selected'] == true,
                     title: Text('导入第 ${index + 1} 项'),
                     onChanged: (value) {
@@ -224,7 +224,7 @@ class _CaptureReviewPageState extends ConsumerState<_CaptureReviewPage> {
             _error!,
             style: TextStyle(color: Theme.of(context).colorScheme.error),
           ),
-        CheckboxListTile(
+        CheckboxListTile.adaptive(
           value: _confirmed,
           title: const Text('已核对所选作业、课程和截止时间'),
           onChanged: (value) => setState(() => _confirmed = value ?? false),
