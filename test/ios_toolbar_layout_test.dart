@@ -129,6 +129,11 @@ void main() {
           expect(rect.left, greaterThanOrEqualTo(0));
           expect(rect.right, lessThanOrEqualTo(size.width));
         }
+        for (final label in ['整周课表', '添加课程']) {
+          final paragraph = tester.renderObject<RenderParagraph>(find.text(label));
+          final required = paragraph.getDryLayout(m.BoxConstraints(maxWidth: paragraph.size.width));
+          expect(paragraph.size.height + 0.000001, greaterThanOrEqualTo(required.height));
+        }
         final buttons = find.byType(ui.FloatingActionButton);
         expect(buttons, findsNWidgets(2));
         if (scale == 1) {

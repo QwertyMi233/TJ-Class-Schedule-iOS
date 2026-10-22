@@ -89,7 +89,7 @@ final class TJNativeUIView: NSObject, FlutterPlatformView {
             style.contentInsets = flat ? .zero : NSDirectionalEdgeInsets(top: 10, leading: 14, bottom: 10, trailing: 14)
             button.configuration = style
             button.titleLabel?.adjustsFontForContentSizeCategory = true
-            button.titleLabel?.numberOfLines = 2
+            button.titleLabel?.numberOfLines = 0
             button.titleLabel?.lineBreakMode = .byWordWrapping
             button.accessibilityLabel = configuration["label"] as? String ?? configuration["title"] as? String
             button.isEnabled = configuration["enabled"] as? Bool != false

@@ -291,10 +291,11 @@ class FloatingActionButton extends m.FloatingActionButton {
     final title = widgetLabel(nativeLabel);
     final icon = nativeIcon;
     final hasIcon = icon != null;
+    final labelStyle = const m.TextStyle(
+      fontSize: 16, fontWeight: m.FontWeight.w500, height: 1.25,
+    ).copyWith(fontFamily: m.Theme.of(context).textTheme.labelLarge?.fontFamily);
     final painter = m.TextPainter(
-      text: m.TextSpan(text: title, style: const m.TextStyle(
-        fontSize: 16, fontWeight: m.FontWeight.w500,
-      )),
+      text: m.TextSpan(text: title, style: labelStyle),
       textDirection: m.Directionality.of(context),
       textScaler: m.MediaQuery.textScalerOf(context),
     )..layout();
@@ -304,7 +305,7 @@ class FloatingActionButton extends m.FloatingActionButton {
       math.max(112.0, painter.width + contentPadding),
     );
     painter.layout(maxWidth: math.max(16, width - contentPadding));
-    final height = math.max(48.0, painter.height + 20);
+    final height = math.max(48.0, painter.height + 24);
     painter.dispose();
     return m.SizedBox(
       width: width,
@@ -323,7 +324,7 @@ class FloatingActionButton extends m.FloatingActionButton {
           : c.CupertinoButton.filled(
               onPressed: onPressed,
               borderRadius: m.BorderRadius.circular(24),
-              padding: const m.EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              padding: const m.EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: m.Row(
                 mainAxisSize: m.MainAxisSize.min,
                 children: [
@@ -331,9 +332,7 @@ class FloatingActionButton extends m.FloatingActionButton {
                     iosIcon(icon, size: 20),
                     const m.SizedBox(width: 6),
                   ],
-                  m.Flexible(child: m.Text(title, style: const m.TextStyle(
-                    fontSize: 16, fontWeight: m.FontWeight.w500,
-                  ))),
+                  m.Flexible(child: m.Text(title, style: labelStyle)),
                 ],
               ),
             ),
